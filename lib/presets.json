@@ -1,0 +1,48 @@
+[
+  {
+    "id": "main_hero_shot",
+    "name": "MAIN HERO SHOT",
+    "prompt": "eCommerce hero image: product centered and upright, filling 85–90% of a square 1024×1024 frame. Pure white background (RGB 255,255,255 / HEX #FFFFFF), perfectly uniform — no floor, no horizon, no shadow, no gradient, no table, no corner, no reflection. Studio lighting (softbox, 85mm f/8, ISO100), true colors, sharp focus, sRGB. Commercial catalog quality. If the background is not pure #FFFFFF, correct it to pure white."
+  },
+  {
+    "id": "lifestyle_context",
+    "name": "LIFESTYLE CONTEXT",
+    "prompt": "Lifestyle image: product on left side, focal point, shown in authentic real-life use with person, 50mm f/2.8, natural window light + soft fill, blurred contextual background, rule of thirds composition, warm atmosphere, clear benefit and usage story."
+  },
+  {
+    "id": "detail_close_up",
+    "name": "DETAIL CLOSE UP",
+    "prompt": "Close-up detail: product angled right, extreme macro with 100mm f/11, side lighting enhancing textures/materials/stitching/finish, neutral gray gradient background, razor-sharp, color-accurate, premium craftsmanship showcased."
+  },
+  {
+    "id": "scale_reference",
+    "name": "SCALE REFERENCE",
+    "prompt": "Scale reference: product {height}cm × {width}cm × {length}cm, {weight}g, 85mm f/8 on pure white, shown with hand or common object (credit card, phone, mug) for instant size clarity, evenly lit, sharp and honest."
+  },
+  {
+    "id": "whats_in_box",
+    "name": "WHATS IN BOX",
+    "prompt": "\"What’s in the Box\": flat-lay overhead with 50mm f/8, pure white background, all included items (main product, accessories, manuals, cables, packaging) neatly arranged with spacing, evenly lit, clean and complete."
+  },
+  {
+    "id": "feature_callout",
+    "name": "FEATURE CALLOUT",
+    "prompt": "Feature highlight: product on clean white/gray background, 85mm f/5.6, composition directs eye to unique benefit (button, mechanism, design, material), subtle directional lighting, sharp focus, accurate colors."
+  },
+  {
+    "id": "angle_variation",
+    "name": "ANGLE VARIATION",
+    "prompt": "Alternative angle: product shown from 45°/back/side, 85mm f/8, pure white background, three-point studio lighting, sharp, color-matched to hero shot, reveals hidden design details (ports, panels, controls)."
+  },
+  {
+    "id": "size_comparison_lineup",
+    "name": "SIZE COMPARISON LINEUP",
+    "prompt": "Size/variant comparison: lineup of products/configurations on pure white, 85mm f/8, evenly lit, aligned baseline, accurate colors/sizes, clean composition for easy visual comparison."
+  },
+  {
+    "id": "in_action_demo",
+    "name": "IN ACTION DEMO",
+    "prompt": "In-action demo: product actively used or function displayed, 50mm f/4, uncluttered neutral/white/blurred background, clear human interaction if needed, well-lit, shows benefit or transformation instantly."
+  }
+]
+
