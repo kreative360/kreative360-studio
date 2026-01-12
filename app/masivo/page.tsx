@@ -75,7 +75,7 @@ function Thumb({
   selectable = false,
   selected = true,
   onToggleSelect,
-  name, // 🆕 nombre de archivo opcional (para descargas individuales)
+  name,
 }: {
   url: string;
   idx: number;
@@ -212,10 +212,10 @@ function Thumb({
 
 type Mode = "csv" | "url" | "local";
 
-const LS_PRESET_OVERRIDES = "presetOverrides:v1"; // {names, prompts}
-const LS_PRESET_ORDER = "presetOrder:v1";         // string[] de ids en orden
-const LS_CUSTOM_REFS = "customRefs:v1";           // Record<presetId, string>
-const LS_SELECTED_PROJECT = "selectedProject:v1"; // 🆕 ID del proyecto seleccionado
+const LS_PRESET_OVERRIDES = "presetOverrides:v1";
+const LS_PRESET_ORDER = "presetOrder:v1";
+const LS_CUSTOM_REFS = "customRefs:v1";
+const LS_SELECTED_PROJECT = "selectedProject:v1";
 
 /* Instrucción automática para prompts custom con imagen de referencia */
 const REFERENCE_INSTRUCTION_EN = `
@@ -265,11 +265,11 @@ export default function Page() {
   /* ====== Local ====== */
   const [localImages, setLocalImages] = useState<string[]>([]);
   const [localEnabled, setLocalEnabled] = useState<boolean[]>([]);
-  const [localNames, setLocalNames] = useState<string[]>([]); // 🆕 nombres de archivos locales
-  const [firstLocalBase, setFirstLocalBase] = useState<string>(""); // 🆕 base del 1º archivo (sin extensión)
-  const [zipNameRef, setZipNameRef] = useState<string>(""); // 🆕 editable, autocompletado en Local
-  const [zipNameAsin, setZipNameAsin] = useState<string>(""); // 🆕 ASIN editable
-  const [zipInputKey, setZipInputKey] = useState<number>(0); // para forzar reset visual del input (botón X)
+  const [localNames, setLocalNames] = useState<string[]>([]);
+  const [firstLocalBase, setFirstLocalBase] = useState<string>("");
+  const [zipNameRef, setZipNameRef] = useState<string>("");
+  const [zipNameAsin, setZipNameAsin] = useState<string>("");
+  const [zipInputKey, setZipInputKey] = useState<number>(0);
 
   const addLocalFiles = async (files: FileList | null) => {
     if (!files || !files.length) return;
@@ -277,7 +277,6 @@ export default function Page() {
     const spaceLeft = Math.max(0, 6 - localImages.length);
     const toReadFiles = Array.from(files).slice(0, spaceLeft);
 
-    // 🆕 Autocompletar nombre ZIP + recordar nombre del primer archivo
     if (!firstLocalBase && toReadFiles.length > 0) {
       const base = toReadFiles[0].name.replace(/\.[^/.]+$/, "");
       setFirstLocalBase(base);
@@ -305,7 +304,6 @@ export default function Page() {
     const l = localImages.slice(); l.splice(idx, 1); setLocalImages(l);
     const en = localEnabled.slice(); en.splice(idx, 1); setLocalEnabled(en);
     const n = localNames.slice(); n.splice(idx, 1); setLocalNames(n);
-    // Si quitamos la primera y era la que fijó el nombre por defecto, no tocamos zipName (el usuario puede editarlo).
   };
 
   const clearLocal = () => {
@@ -313,10 +311,8 @@ export default function Page() {
     setLocalEnabled([]);
     setLocalNames([]);
     setFirstLocalBase("");
-    // No tocamos zipName: el usuario puede querer mantenerlo hasta limpiar manualmente con la X.
   };
 
-  // 🆕 Al entrar en modo URL, el nombre ZIP debe quedar vacío por defecto (editable manualmente)
   useEffect(() => {
     if (mode === "url") {
       setZipNameRef("");
@@ -347,7 +343,6 @@ export default function Page() {
   const [nameOverrides, setNameOverrides] = useState<Record<string, string | undefined>>({});
   const [editedPrompts, setEditedPrompts] = useState<EditMap>({});
 
-  // Cargar overrides
   useEffect(() => {
     try {
       const raw = localStorage.getItem(LS_PRESET_OVERRIDES);
@@ -361,7 +356,6 @@ export default function Page() {
     }
   }, []);
 
-  // Guardar overrides
   useEffect(() => {
     try {
       const toStore: Overrides = { names: nameOverrides, prompts: editedPrompts };
@@ -410,12 +404,23 @@ export default function Page() {
     return () => { img.removeEventListener("mousemove", move); };
   }, [lightbox.open]);
 
-  /* ====== Referencia activa ====== */
-  const activeRef =
-    batch.items.length > 0 ? batch.items[batch.index]?.ref ?? "manual" : "manual";
-  const activeAsin = batch.items.length > 0 ? batch.items[batch.index]?.asin ?? "" : "";
+  /* ====== 🔧 CORREGIDO: Referencia activa ====== */
+  const activeRef = useMemo(() => {
+    if (batch.items.length > 0) {
+      return batch.items[batch.index]?.ref ?? "manual";
+    }
+    // 🆕 En modo URL o Local, usar zipNameRef si existe, sino "manual"
+    return zipNameRef.trim() || "manual";
+  }, [batch.items, batch.index, zipNameRef]);
 
-  // 🆕 Autocompletar nombres ZIP cuando cambia la referencia activa en modo CSV
+  const activeAsin = useMemo(() => {
+    if (batch.items.length > 0) {
+      return batch.items[batch.index]?.asin ?? "";
+    }
+    // 🆕 En modo URL o Local, usar zipNameAsin
+    return zipNameAsin.trim();
+  }, [batch.items, batch.index, zipNameAsin]);
+
   useEffect(() => {
     if (mode === "csv" && batch.items.length > 0) {
       const currentItem = batch.items[batch.index];
@@ -428,7 +433,7 @@ export default function Page() {
   }, [batch.index, batch.items, mode]);
 
   /* ====== Orden de selección para descarga (0..n) ====== */
-  type OrderMap = Record<string, number>; // key = `${ref}::${presetId}::${idx}`
+  type OrderMap = Record<string, number>;
   const [orderMap, setOrderMap] = useState<OrderMap>({});
   const keyFor = (ref: string, presetId: string, idx: number) => `${ref}::${presetId}::${idx}`;
   const getOrder = (ref: string, presetId: string, idx: number) => orderMap[keyFor(ref, presetId, idx)];
@@ -480,14 +485,11 @@ export default function Page() {
         const cells = splitCSVLine(lines[i], delim);
         if (!cells.length) continue;
         
-        // 🆕 Nueva estructura: A=referencia, B=ASIN (opcional), C-G=URLs
         const ref = (cells[0] || "").trim().replace(/\s+/g, " ");
-        const asin = (cells[1] || "").trim(); // ASIN opcional
+        const asin = (cells[1] || "").trim();
         
-        // URLs: columnas C-G (índices 2-6)
         let urlFields = cells.slice(2, 7);
         
-        // Compatibilidad hacia atrás: si no hay suficientes columnas, intenta parsear desde B
         if (cells.length <= 2) {
           urlFields = [cells[1] || ""];
         }
@@ -509,7 +511,6 @@ export default function Page() {
       setUrlEnabled(items[0].urls.map(() => true));
       setUrlInput(items[0].urls.join(" "));
       
-      // 🆕 Autocompletar nombres ZIP
       setZipNameRef(items[0].ref || "");
       setZipNameAsin(items[0].asin || "");
       
@@ -529,7 +530,6 @@ export default function Page() {
     setUrlEnabled(nextItem.urls.map(() => true));
     setUrlInput(nextItem.urls.join(" "));
     
-    // 🆕 Autocompletar nombres ZIP
     setZipNameRef(nextItem.ref || "");
     setZipNameAsin(nextItem.asin || "");
   };
@@ -548,10 +548,8 @@ export default function Page() {
     const zip = new JSZip();
     let added = 0;
 
-    // 🆕 SOLO usar la referencia activa, no todas las referencias en orderMap
     const targetRef = activeRef;
 
-    // 🆕 Determinar el nombre base según el modo seleccionado
     let baseName = "";
     if (useAsin) {
       baseName = zipNameAsin.trim();
@@ -569,7 +567,6 @@ export default function Page() {
       return;
     }
 
-    // 🆕 Filtrar SOLO las entradas de la referencia activa
     const entries = Object.entries(orderMap)
       .filter(([k]) => k.startsWith(`${targetRef}::`))
       .sort((a, b) => a[1] - b[1]);
@@ -591,7 +588,6 @@ export default function Page() {
           ? "gif"
           : "jpg";
 
-      // 🆕 Imágenes directamente en raíz del ZIP (sin carpeta interna)
       const filename = `${baseName}_${order}.${ext}`;
       zip.file(filename, img.base64, { base64: true });
       added++;
@@ -612,7 +608,6 @@ export default function Page() {
   const [projects, setProjects] = useState<Array<{ id: string; name: string }>>([]);
   const [isLoadingProjects, setIsLoadingProjects] = useState(false);
 
-  // 🆕 Cargar proyectos desde API
   useEffect(() => {
     const loadProjects = async () => {
       try {
@@ -623,16 +618,14 @@ export default function Page() {
         setProjects(data.projects || []);
       } catch (error) {
         console.error("Error cargando proyectos:", error);
-        // Mantener estado vacío pero no romper la UI
       } finally {
         setIsLoadingProjects(false);
       }
     };
 
     loadProjects();
-  }, []); // Solo se carga una vez al montar
+  }, []);
 
-  // 🆕 Cargar proyecto seleccionado desde localStorage al iniciar
   useEffect(() => {
     try {
       const saved = localStorage.getItem(LS_SELECTED_PROJECT);
@@ -644,7 +637,6 @@ export default function Page() {
     }
   }, []);
 
-  // 🆕 Guardar proyecto seleccionado en localStorage
   useEffect(() => {
     if (selectedProjectId) {
       try {
@@ -658,19 +650,19 @@ export default function Page() {
   /* ====== Estado para el envío ====== */
   const [isSending, setIsSending] = useState(false);
 
-  /* ====== Función para el nuevo botón "Enviar a proyecto" ====== */
+  /* ====== 🔧 CORREGIDO: Función para enviar a proyecto ====== */
   const handleSendToProject = async () => {
-    // 🆕 Verificar que hay proyecto seleccionado
     if (!selectedProjectId) {
       alert("Selecciona un proyecto antes de enviar imágenes.");
       return;
     }
 
+    // 🆕 Usar activeRef y activeAsin que ya toman en cuenta zipNameRef y zipNameAsin
     const reference = activeRef || null;
     const asin = activeAsin || null;
 
-    if (!reference && !asin) {
-      alert("No hay referencia ni ASIN activos.");
+    if (!reference) {
+      alert("Debes especificar una referencia en el campo correspondiente.");
       return;
     }
 
@@ -722,7 +714,7 @@ export default function Page() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          projectId: selectedProjectId, // 🆕 Usar el proyecto seleccionado
+          projectId: selectedProjectId,
           images,
         }),
       });
@@ -744,7 +736,6 @@ export default function Page() {
     }
   };
 
-  // Limpiar resultados + fuentes + numeración
   const clearAllImages = () => {
     if (!Object.keys(resultsByRef).length && urls.length === 0 && localImages.length === 0) return;
     if (confirm("¿Limpiar panel? Esto borra imágenes generadas, numeración y fuentes cargadas (URLs/Local).")) {
@@ -757,7 +748,6 @@ export default function Page() {
 
   /* ====== Construcción de presets con 6 extras y orden persistente ====== */
 
-  // Lista base (PRESETS) + **6 custom**
   const baseAndCustom = useMemo(() => {
     const customs = Array.from({ length: 6 }, (_, i) => ({
       id: `custom-${i + 1}`,
@@ -767,9 +757,8 @@ export default function Page() {
     return [...PRESETS, ...customs];
   }, []);
 
-  // Orden persistente
   const [presetOrder, setPresetOrder] = useState<string[]>([]);
-  // Cargar orden
+  
   useEffect(() => {
     try {
       const raw = localStorage.getItem(LS_PRESET_ORDER);
@@ -780,7 +769,6 @@ export default function Page() {
         return;
       }
       const stored = JSON.parse(raw) as string[];
-      // Reconciliar: quitar ids que ya no existen y añadir nuevos al final
       const existingSet = new Set(baseAndCustom.map((p) => p.id));
       const filtered = stored.filter((id) => existingSet.has(id));
       const missing = baseAndCustom.map((p) => p.id).filter((id) => !filtered.includes(id));
@@ -793,7 +781,6 @@ export default function Page() {
     }
   }, [baseAndCustom]);
 
-  // Helpers de orden
   const mapById = useMemo(() => {
     const m = new Map<string, { id: string; name: string; prompt: string }>();
     baseAndCustom.forEach((p) => m.set(p.id, p));
@@ -813,7 +800,6 @@ export default function Page() {
     } catch {}
   };
 
-  // Drag & Drop
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const onDragStart = (id: string) => (e: React.DragEvent) => {
     setDraggingId(id);
@@ -942,10 +928,9 @@ export default function Page() {
 
   /* ====== NUEVO: Imágenes de referencia por tarjeta custom ====== */
 
-  type RefImageMap = Record<string, string | undefined>; // key: presetId (custom-*)
+  type RefImageMap = Record<string, string | undefined>;
   const [customRefs, setCustomRefs] = useState<RefImageMap>({});
 
-  // Cargar referencias desde localStorage
   useEffect(() => {
     try {
       const raw = localStorage.getItem(LS_CUSTOM_REFS);
@@ -955,7 +940,6 @@ export default function Page() {
     }
   }, []);
 
-  // Guardar referencias en localStorage
   useEffect(() => {
     try {
       localStorage.setItem(LS_CUSTOM_REFS, JSON.stringify(customRefs));
@@ -964,7 +948,6 @@ export default function Page() {
     }
   }, [customRefs]);
 
-  // Añadir/actualizar referencia (archivo local o URL)
   const addCustomRefFromFile = async (presetId: string, file: File | null) => {
     if (!file) return;
     const fr = new FileReader();
@@ -978,7 +961,6 @@ export default function Page() {
     const trimmed = url.trim();
     if (!trimmed) return;
     try {
-      // Validar URL
       new URL(trimmed);
       setCustomRefs((prev) => ({ ...prev, [presetId]: trimmed }));
     } catch {
@@ -1006,19 +988,16 @@ export default function Page() {
     const sources = usingLocal ? localImages : urls;
     const enabled = usingLocal ? localEnabled : urlEnabled;
 
-    // Fuentes activas (producto) seleccionadas por el usuario
     const productRefs = sources.filter((_, i) => enabled[i]);
     if (!productRefs.length) {
       alert("Selecciona al menos 1 imagen/URL (máx. 6).");
       return;
     }
 
-    // Prompt final (override si existe)
     let overridePrompt = (editedPrompts[presetId] ?? mapById.get(presetId)?.prompt ?? "").trim();
 
-    // Si es custom-*, exigimos prompt y añadimos instrucción + referencia
     const isCustom = presetId.startsWith("custom-");
-    const refImage = customRefs[presetId]; // base64 o URL persistida
+    const refImage = customRefs[presetId];
     if (isCustom) {
       if (!overridePrompt) {
         alert("Escribe un prompt en la tarjeta antes de generar.");
@@ -1029,17 +1008,13 @@ export default function Page() {
       }
     }
 
-    // Construir array refs a enviar: si hay referencia custom, la anteponemos
     const refsToSend = (refImage ? [refImage, ...productRefs] : productRefs).slice(0, 6);
 
-    // Para presets custom, usamos un preset base existente (compatibilidad con backend)
     const basePresetId = isCustom ? (PRESETS[0]?.id || presetId) : presetId;
 
-    // Parsear tamaño/resolución
     const [width, height] = imageSize.split('x').map(Number);
 
     try {
-      // activar loading SOLO de esta tarjeta
       setLoadingSet((prev) => {
         const next = new Set(prev);
         next.add(presetId);
@@ -1072,7 +1047,6 @@ export default function Page() {
       console.error(err);
       alert(err?.message || "Error generando imágenes");
     } finally {
-      // desactivar loading SOLO de esta tarjeta
       setLoadingSet((prev) => {
         const next = new Set(prev);
         next.delete(presetId);
@@ -1138,7 +1112,6 @@ export default function Page() {
           </h1>
         </div>
 
-        {/* Botones a la derecha del título */}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button
             onClick={clearAllImages}
@@ -1163,7 +1136,6 @@ export default function Page() {
             Refrescar numeración
           </button>
 
-          {/* 🆕 Limpiar imágenes de referencia (custom) */}
           <button
             onClick={clearAllCustomRefs}
             style={{
@@ -1180,7 +1152,7 @@ export default function Page() {
 
       <p style={{ marginTop: 6, color: "#15181C" }}>MVP Privado - Alejandro García</p>
 
-          {/* Grupo 1 – Fuente */}
+      {/* Grupo 1 – Fuente */}
       <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
         {(["csv", "url", "local"] as Mode[]).map((m) => {
           const label =
@@ -1210,7 +1182,7 @@ export default function Page() {
         })}
       </div>
 
-      {/* Grupo 2 – Opciones de generación (SOLO UI) */}
+      {/* Grupo 2 – Opciones de generación */}
       <div
         style={{
           display: "flex",
@@ -1220,7 +1192,6 @@ export default function Page() {
           alignItems: "center",
         }}
       >
-        {/* Selector de TAMAÑO / RELACIÓN DE ASPECTO */}
         <select
           value={imageSize}
           onChange={(e) => setImageSize(e.target.value)}
@@ -1256,7 +1227,6 @@ export default function Page() {
           <option value="4961x3508">A3 horizontal · 4961×3508</option>
         </select>
 
-        {/* Selector de FORMATO */}
         <select
           value={imageFormat}
           onChange={(e) => setImageFormat(e.target.value)}
@@ -1275,7 +1245,6 @@ export default function Page() {
           <option value="bmp">BMP</option>
         </select>
 
-        {/* Selector de MOTOR IA */}
         <select
           value={engine}
           onChange={(e) => setEngine(e.target.value as "standard" | "pro")}
@@ -1293,7 +1262,7 @@ export default function Page() {
         </select>
       </div>
 
-    {/* Tabla persistente de referencias */}
+      {/* Tabla persistente de referencias */}
       {batch.items.length > 0 && (
         <div
           style={{
@@ -1389,7 +1358,6 @@ export default function Page() {
                             setUrls(it.urls);
                             setUrlEnabled(it.urls.map(() => true));
                             setUrlInput(it.urls.join(" "));
-                            // 🆕 Autocompletar nombres ZIP
                             setZipNameRef(it.ref || "");
                             setZipNameAsin(it.asin || "");
                           }}
@@ -1432,7 +1400,6 @@ export default function Page() {
             </table>
           </div>
 
-          {/* Navegación simple de batch */}
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 10 }}>
             <button
               onClick={() => {
@@ -1443,7 +1410,6 @@ export default function Page() {
                   setUrls(prevItem.urls);
                   setUrlEnabled(prevItem.urls.map(() => true));
                   setUrlInput(prevItem.urls.join(" "));
-                  // 🆕 Autocompletar nombres ZIP
                   setZipNameRef(prevItem.ref || "");
                   setZipNameAsin(prevItem.asin || "");
                 }
@@ -1493,7 +1459,7 @@ export default function Page() {
           {mode === "url" &&
             "Pega 1–6 URLs (JPG/PNG) del mismo producto. Puedes separarlas por espacios; también aceptamos comas dentro de parámetros de la URL."}
           {mode === "local" &&
-            "Carga 1–6 imágenes desde tu ordenador (JPG/PNG). Se usan solo en tu navegador."}
+            "Carga 1–6 imágenes desde tu ordenador (JPG/PNG). Se usas solo en tu navegador."}
         </p>
 
         {/* URL mode */}
@@ -1536,7 +1502,6 @@ export default function Page() {
                 ↑
               </button>
 
-              {/* Cargar CSV aquí, solo en modo URL */}
               <label
                 style={{
                   border: "1px solid #e5e7eb", borderRadius: 10, padding: "10px 12px",
@@ -1705,7 +1670,6 @@ export default function Page() {
                   idx={i}
                   onRemove={removeLocal}
                   onPreview={(src) => {
-                    // Descarga individual de la imagen de referencia local con su nombre original
                     const suggested = localNames[i] || (firstLocalBase ? `${firstLocalBase}.jpg` : undefined);
                     openLightbox(src, suggested);
                   }}
@@ -1734,7 +1698,7 @@ export default function Page() {
           <small style={{ color: "#6b7280" }}>(máx. 6)</small>
         </div>
 
-        {/* 🆕 Fila: SELECTOR DE PROYECTO + DOS CAMPOS ZIP + BOTÓN ENVIAR A PROYECTO */}
+        {/* FILA: SELECTOR DE PROYECTO + DOS CAMPOS ZIP + BOTÓN ENVIAR A PROYECTO */}
         <div
           style={{
             display: "flex",
@@ -1746,7 +1710,6 @@ export default function Page() {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            {/* 🆕 Selector de Proyecto */}
             <div style={{ position: "relative" }}>
               <select
                 value={selectedProjectId || ""}
@@ -1790,7 +1753,6 @@ export default function Page() {
               </div>
             </div>
 
-            {/* Campo Referencia */}
             <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
               <input
                 key={`ref-${zipInputKey}`}
@@ -1819,7 +1781,6 @@ export default function Page() {
               )}
             </div>
 
-            {/* Campo ASIN */}
             <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
               <input
                 key={`asin-${zipInputKey}`}
@@ -1848,7 +1809,6 @@ export default function Page() {
               )}
             </div>
 
-            {/* 🔵 BOTÓN "Enviar a proyecto" - AHORA EN POSICIÓN PRINCIPAL */}
             <button
               onClick={handleSendToProject}
               disabled={isSending || !selectedProjectId}
@@ -1875,7 +1835,7 @@ export default function Page() {
           </div>
         </div>
 
-        {/* 🆕 FILA INFERIOR: Botones de descarga y marca finalizada */}
+        {/* FILA INFERIOR: Botones de descarga y marca finalizada */}
         <div
           style={{
             display: "flex",
@@ -1887,7 +1847,6 @@ export default function Page() {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            {/* Botón Descargar ZIP (Referencia) */}
             <button
               onClick={() => handleDownloadSelected(false)}
               style={{
@@ -1899,7 +1858,6 @@ export default function Page() {
               Descargar ZIP (Referencia)
             </button>
 
-            {/* Botón Descargar ZIP (ASIN) */}
             <button
               onClick={() => handleDownloadSelected(true)}
               disabled={!zipNameAsin.trim()}
@@ -1915,7 +1873,6 @@ export default function Page() {
             </button>
           </div>
 
-          {/* Botón Marcar referencia como finalizada */}
           <button
             onClick={markCurrentAsDone}
             disabled={batch.items.length === 0}
@@ -1932,7 +1889,7 @@ export default function Page() {
         </div>
       </div>
 
-      {/* Grid de presets (reordenables + persistentes) */}
+      {/* Grid de presets */}
       <div
         style={{
           display: "grid",
@@ -2011,7 +1968,6 @@ export default function Page() {
                           : mime.includes("gif")
                           ? "gif"
                           : "jpg";
-                      // 🆕 nombre sugerido para descarga individual en Local: usa el primer nombre local si existe
                       const suggestedName =
                         mode === "local" && (zipNameRef.trim() || firstLocalBase.trim())
                           ? `${(zipNameRef.trim() || firstLocalBase.trim())}.${ext}`
@@ -2376,7 +2332,6 @@ export default function Page() {
             <div style={{ marginTop: 12, textAlign: "center" }}>
               <a
                 href={lightbox.src}
-                // 🆕 nombre por defecto en descarga individual
                 download={lightbox.name || undefined}
                 style={{
                   marginRight: 12,
