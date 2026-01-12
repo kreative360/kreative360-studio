@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getOrCreateProductReference } from "@/lib/services/supabase.service";
 import { v4 as uuidv4 } from "uuid";
 
 export async function POST(req: Request) {
@@ -47,12 +48,27 @@ export async function POST(req: Request) {
         );
       }
 
+      // 🆕 CREAR O BUSCAR PRODUCT REFERENCE
+      let productReferenceId = null;
+      
+      if (reference) {
+        try {
+          const productRef = await getOrCreateProductReference(reference, {
+            asin: asin || null,
+          });
+          productReferenceId = productRef.id;
+        } catch (error) {
+          console.error("Error creando product reference:", error);
+          // Continuar sin vincular si falla
+        }
+      }
+
       const buffer = Buffer.from(
         base64.replace(/^data:image\/\w+;base64,/, ""),
         "base64"
       );
 
-      // ✅ STORAGE ORDENADO POR PROYECTO
+      // Storage path
       const storagePath = `projects/${projectId}/${uuidv4()}-${filename}`;
 
       const { error: uploadError } = await supabaseAdmin.storage
@@ -64,16 +80,20 @@ export async function POST(req: Request) {
 
       if (uploadError) throw uploadError;
 
+      // 🆕 GUARDAR CON reference_id
       const { data, error: dbError } = await supabaseAdmin
         .from("project_images")
         .insert({
           project_id: projectId,
           reference: reference ?? null,
+          reference_id: productReferenceId, // 🆕 Nueva columna
           asin: asin ?? null,
           image_index,
           filename,
           mime,
           storage_path: storagePath,
+          generation_mode: "manual", // 🆕 Por defecto manual
+          validation_status: "pending", // 🆕 Por defecto pending
         })
         .select()
         .single();
