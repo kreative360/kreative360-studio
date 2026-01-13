@@ -708,17 +708,21 @@ export default function Page() {
     }
 
     // 🆕 CAPTURAR URL ORIGINAL DE REFERENCIA
-    let originalImageUrl: string | null = null;
+let originalImageUrl: string | null = null;
 
-    if (mode === "csv" || mode === "url") {
-      // En modo CSV/URL: usar la primera URL habilitada
-      const enabledUrls = urls.filter((_, i) => urlEnabled[i]);
-      originalImageUrl = enabledUrls.length > 0 ? enabledUrls[0] : null;
-    } else if (mode === "local") {
-      // En modo Local: usar la primera imagen local habilitada (ya es base64)
-      const enabledLocalImages = localImages.filter((_, i) => localEnabled[i]);
-      originalImageUrl = enabledLocalImages.length > 0 ? enabledLocalImages[0] : null;
-    }
+if (mode === "csv") {
+  // En modo CSV: usar la PRIMERA URL del batch item (columna C del CSV)
+  const currentBatchItem = batch.items[batch.index];
+  originalImageUrl = currentBatchItem?.urls?.[0] || null;
+} else if (mode === "url") {
+  // En modo URL: usar la primera URL habilitada
+  const enabledUrls = urls.filter((_, i) => urlEnabled[i]);
+  originalImageUrl = enabledUrls.length > 0 ? enabledUrls[0] : null;
+} else if (mode === "local") {
+  // En modo Local: usar la primera imagen local habilitada (ya es base64)
+  const enabledLocalImages = localImages.filter((_, i) => localEnabled[i]);
+  originalImageUrl = enabledLocalImages.length > 0 ? enabledLocalImages[0] : null;
+}
 
     setIsSending(true);
 
