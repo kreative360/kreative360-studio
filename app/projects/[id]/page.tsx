@@ -12,6 +12,7 @@ type ProjectImage = {
   asin?: string;
   index?: number;
   url?: string;
+  validation_status?: "pending" | "approved" | "rejected";
 };
 
 const CHUNK_SIZE = 100;
@@ -35,6 +36,9 @@ export default function ProjectPage() {
   const [downloadTotal, setDownloadTotal] = useState(0);
 
   const [order, setOrder] = useState<"oldest" | "newest">("oldest");
+
+  // 🆕 NUEVO: Filtro de validación
+  const [validationFilter, setValidationFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
 
   /* ======================================================
      CARGA DE IMÁGENES (REAL)
@@ -61,11 +65,52 @@ export default function ProjectPage() {
   }, [projectId]);
 
   /* ======================================================
+     🆕 NUEVO: FUNCIONES DE VALIDACIÓN
+  ====================================================== */
+  const updateValidationStatus = async (
+    imageId: string,
+    status: "approved" | "rejected" | "pending"
+  ) => {
+    try {
+      const res = await fetch("/api/validations/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageId, status }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        alert("Error actualizando estado de validación");
+        return;
+      }
+
+      // Actualizar el estado local
+      setImages((prev) =>
+        prev.map((img) =>
+          img.id === imageId ? { ...img, validation_status: status } : img
+        )
+      );
+    } catch (error) {
+      console.error("Error updating validation:", error);
+      alert("Error actualizando estado de validación");
+    }
+  };
+
+  /* ======================================================
+     🆕 NUEVO: FILTRADO POR VALIDACIÓN
+  ====================================================== */
+  const filteredImages = images.filter((img) => {
+    if (validationFilter === "all") return true;
+    return img.validation_status === validationFilter;
+  });
+
+  const displayedImages =
+    order === "oldest" ? filteredImages : [...filteredImages].reverse();
+
+  /* ======================================================
      SELECCIÓN (ORIGINAL)
   ====================================================== */
-  const displayedImages =
-    order === "oldest" ? images : [...images].reverse();
-
   const selectAll = () =>
     setSelected(new Set(displayedImages.map((img) => img.id)));
 
@@ -187,7 +232,17 @@ export default function ProjectPage() {
   };
 
   /* ======================================================
-     UI (100 % ORIGINAL)
+     🆕 NUEVO: ESTADÍSTICAS DE VALIDACIÓN
+  ====================================================== */
+  const stats = {
+    total: images.length,
+    pending: images.filter((img) => img.validation_status === "pending").length,
+    approved: images.filter((img) => img.validation_status === "approved").length,
+    rejected: images.filter((img) => img.validation_status === "rejected").length,
+  };
+
+  /* ======================================================
+     UI
   ====================================================== */
   return (
     <div style={{ height: "100vh", background: "#fff", display: "flex" }}>
@@ -219,9 +274,30 @@ export default function ProjectPage() {
           Proyectos
         </h1>
 
-        <p style={{ textAlign: "center", marginBottom: 18, opacity: 0.7 }}>
+        <p style={{ textAlign: "center", marginBottom: 12, opacity: 0.7 }}>
           Imágenes en proyecto: {images.length}
         </p>
+
+        {/* 🆕 NUEVO: Estadísticas de validación */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            gap: 16,
+            marginBottom: 18,
+            fontSize: 13,
+          }}
+        >
+          <span style={{ color: "#666" }}>
+            ⏳ Pendientes: <strong>{stats.pending}</strong>
+          </span>
+          <span style={{ color: "#10b981" }}>
+            ✅ Aprobadas: <strong>{stats.approved}</strong>
+          </span>
+          <span style={{ color: "#ef4444" }}>
+            ❌ Rechazadas: <strong>{stats.rejected}</strong>
+          </span>
+        </div>
 
         {downloading && (
           <div style={{ maxWidth: 420, margin: "0 auto 20px" }}>
@@ -247,6 +323,38 @@ export default function ProjectPage() {
             </div>
           </div>
         )}
+
+        {/* 🆕 NUEVO: Filtros de validación */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            gap: 8,
+            marginBottom: 16,
+            flexWrap: "wrap",
+          }}
+        >
+          {(["all", "pending", "approved", "rejected"] as const).map((filter) => (
+            <button
+              key={filter}
+              className="btn-zoom"
+              onClick={() => setValidationFilter(filter)}
+              style={{
+                borderRadius: 999,
+                padding: "6px 14px",
+                fontSize: 13,
+                background: validationFilter === filter ? "#ff6b6b" : "#f0f0f0",
+                color: validationFilter === filter ? "#fff" : "#333",
+                border: "none",
+              }}
+            >
+              {filter === "all" && "Todas"}
+              {filter === "pending" && "⏳ Pendientes"}
+              {filter === "approved" && "✅ Aprobadas"}
+              {filter === "rejected" && "❌ Rechazadas"}
+            </button>
+          ))}
+        </div>
 
         <div
           style={{
@@ -321,9 +429,42 @@ export default function ProjectPage() {
                   cursor: "pointer",
                   boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
                   overflow: "hidden",
+                  // 🆕 NUEVO: Borde según estado
+                  border: img.validation_status === "approved" 
+                    ? "3px solid #10b981" 
+                    : img.validation_status === "rejected"
+                    ? "3px solid #ef4444"
+                    : "3px solid transparent",
                 }}
                 onClick={() => img.url && setPreview(img.url)}
               >
+                {/* 🆕 NUEVO: Indicador de estado */}
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 10,
+                    right: 10,
+                    width: 24,
+                    height: 24,
+                    borderRadius: "50%",
+                    background: 
+                      img.validation_status === "approved"
+                        ? "#10b981"
+                        : img.validation_status === "rejected"
+                        ? "#ef4444"
+                        : "#fbbf24",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 14,
+                    zIndex: 4,
+                  }}
+                >
+                  {img.validation_status === "approved" && "✓"}
+                  {img.validation_status === "rejected" && "✕"}
+                  {img.validation_status === "pending" && "⏳"}
+                </div>
+
                 {isRowStart && (
                   <div
                     onClick={(e) => {
@@ -395,6 +536,54 @@ export default function ProjectPage() {
                   />
                 )}
 
+                {/* 🆕 NUEVO: Botones de validación */}
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    position: "absolute",
+                    bottom: 40,
+                    left: 0,
+                    right: 0,
+                    display: "flex",
+                    gap: 4,
+                    padding: "0 8px",
+                    justifyContent: "center",
+                  }}
+                >
+                  <button
+                    onClick={() => updateValidationStatus(img.id, "approved")}
+                    style={{
+                      background: "#10b981",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: 6,
+                      padding: "4px 10px",
+                      fontSize: 11,
+                      cursor: "pointer",
+                      fontWeight: 600,
+                    }}
+                    title="Aprobar"
+                  >
+                    ✓ Aprobar
+                  </button>
+                  <button
+                    onClick={() => updateValidationStatus(img.id, "rejected")}
+                    style={{
+                      background: "#ef4444",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: 6,
+                      padding: "4px 10px",
+                      fontSize: 11,
+                      cursor: "pointer",
+                      fontWeight: 600,
+                    }}
+                    title="Rechazar"
+                  >
+                    ✕ Rechazar
+                  </button>
+                </div>
+
                 <div
                   style={{
                     position: "absolute",
@@ -452,4 +641,3 @@ export default function ProjectPage() {
     </div>
   );
 }
-
