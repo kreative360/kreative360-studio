@@ -13,6 +13,7 @@ type ProjectImage = {
   index?: number;
   url?: string;
   validation_status?: "pending" | "approved" | "rejected";
+  original_image_url?: string; // 🆕 AÑADIDO
 };
 
 const CHUNK_SIZE = 100;
@@ -37,8 +38,15 @@ export default function ProjectPage() {
 
   const [order, setOrder] = useState<"oldest" | "newest">("oldest");
 
-  // 🆕 NUEVO: Filtro de validación
   const [validationFilter, setValidationFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
+
+  // 🆕 NUEVO: Estado del modal de revisión
+  const [reviewModal, setReviewModal] = useState<{
+    open: boolean;
+    currentImage: ProjectImage | null;
+    imagesInReference: ProjectImage[];
+    currentIndex: number;
+  } | null>(null);
 
   /* ======================================================
      CARGA DE IMÁGENES (REAL)
@@ -96,6 +104,68 @@ export default function ProjectPage() {
       alert("Error actualizando estado de validación");
     }
   };
+
+  /* ======================================================
+     🆕 NUEVO: MODAL DE REVISIÓN COMPARATIVA
+  ====================================================== */
+  const openReviewModal = (image: ProjectImage) => {
+    // Filtrar imágenes de la misma referencia que estén pendientes
+    const sameReference = images.filter(
+      (img) =>
+        img.reference === image.reference &&
+        img.validation_status === "pending"
+    );
+
+    // Ordenar para que la imagen clickeada sea la primera
+    const sorted = [
+      image,
+      ...sameReference.filter((img) => img.id !== image.id),
+    ];
+
+    setReviewModal({
+      open: true,
+      currentImage: image,
+      imagesInReference: sorted,
+      currentIndex: 0,
+    });
+  };
+
+  const handleReviewAction = async (status: "approved" | "rejected") => {
+    if (!reviewModal || !reviewModal.currentImage) return;
+
+    await updateValidationStatus(reviewModal.currentImage.id, status);
+
+    // Eliminar la imagen actual de la lista
+    const remaining = reviewModal.imagesInReference.filter(
+      (img) => img.id !== reviewModal.currentImage?.id
+    );
+
+    if (remaining.length === 0) {
+      // No quedan más imágenes de esta referencia
+      setReviewModal(null);
+      alert("✅ Revisión de esta referencia completada");
+      return;
+    }
+
+    // Cargar la siguiente imagen
+    setReviewModal({
+      ...reviewModal,
+      currentImage: remaining[0],
+      imagesInReference: remaining,
+      currentIndex: 0,
+    });
+  };
+
+  // 🆕 Listener de ESC key
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && reviewModal?.open) {
+        setReviewModal(null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [reviewModal]);
 
   /* ======================================================
      🆕 NUEVO: FILTRADO POR VALIDACIÓN
@@ -429,14 +499,13 @@ export default function ProjectPage() {
                   cursor: "pointer",
                   boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
                   overflow: "hidden",
-                  // 🆕 NUEVO: Borde según estado
                   border: img.validation_status === "approved" 
                     ? "3px solid #10b981" 
                     : img.validation_status === "rejected"
                     ? "3px solid #ef4444"
                     : "3px solid transparent",
                 }}
-                onClick={() => img.url && setPreview(img.url)}
+                onClick={() => openReviewModal(img)} // 🆕 CAMBIADO: Abre modal de revisión
               >
                 {/* 🆕 NUEVO: Indicador de estado */}
                 <div
@@ -536,54 +605,6 @@ export default function ProjectPage() {
                   />
                 )}
 
-                {/* 🆕 NUEVO: Botones de validación */}
-                <div
-                  onClick={(e) => e.stopPropagation()}
-                  style={{
-                    position: "absolute",
-                    bottom: 40,
-                    left: 0,
-                    right: 0,
-                    display: "flex",
-                    gap: 4,
-                    padding: "0 8px",
-                    justifyContent: "center",
-                  }}
-                >
-                  <button
-                    onClick={() => updateValidationStatus(img.id, "approved")}
-                    style={{
-                      background: "#10b981",
-                      color: "#fff",
-                      border: "none",
-                      borderRadius: 6,
-                      padding: "4px 10px",
-                      fontSize: 11,
-                      cursor: "pointer",
-                      fontWeight: 600,
-                    }}
-                    title="Aprobar"
-                  >
-                    ✓ Aprobar
-                  </button>
-                  <button
-                    onClick={() => updateValidationStatus(img.id, "rejected")}
-                    style={{
-                      background: "#ef4444",
-                      color: "#fff",
-                      border: "none",
-                      borderRadius: 6,
-                      padding: "4px 10px",
-                      fontSize: 11,
-                      cursor: "pointer",
-                      fontWeight: 600,
-                    }}
-                    title="Rechazar"
-                  >
-                    ✕ Rechazar
-                  </button>
-                </div>
-
                 <div
                   style={{
                     position: "absolute",
@@ -613,29 +634,244 @@ export default function ProjectPage() {
 
       <div style={{ width: 22, background: "#ff6b6b" }} />
 
-      {preview && (
+      {/* 🆕 NUEVO: MODAL DE REVISIÓN COMPARATIVA */}
+      {reviewModal?.open && (
         <div
-          onClick={() => setPreview(null)}
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.85)",
+            background: "rgba(0,0,0,0.95)",
             display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
+            flexDirection: "column",
             zIndex: 9999,
-            cursor: "zoom-out",
           }}
         >
-          <img
-            src={preview}
+          {/* Cabecera con contador y botón cerrar */}
+          <div
             style={{
-              maxWidth: "90%",
-              maxHeight: "90%",
-              objectFit: "contain",
-              borderRadius: 12,
+              padding: "20px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              color: "#fff",
             }}
-          />
+          >
+            <h3 style={{ margin: 0 }}>
+              Revisando: {reviewModal.currentImage?.reference || "Sin referencia"}
+            </h3>
+            <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+              <span>
+                Imagen {reviewModal.currentIndex + 1} de {reviewModal.imagesInReference.length}
+              </span>
+              <button
+                onClick={() => setReviewModal(null)}
+                style={{
+                  background: "transparent",
+                  border: "2px solid #fff",
+                  color: "#fff",
+                  borderRadius: 8,
+                  padding: "8px 16px",
+                  cursor: "pointer",
+                  fontSize: 16,
+                }}
+              >
+                ✕ Cerrar
+              </button>
+            </div>
+          </div>
+
+          {/* Contenedor principal con split 50/50 */}
+          <div
+            style={{
+              flex: 1,
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 0,
+              padding: "0 20px",
+              alignItems: "center",
+            }}
+          >
+            {/* LADO IZQUIERDO: Imagen original */}
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "100%",
+                borderRight: "2px solid rgba(255,255,255,0.2)",
+                paddingRight: 20,
+              }}
+            >
+              <p
+                style={{
+                  color: "#fff",
+                  marginBottom: 10,
+                  fontSize: 14,
+                  opacity: 0.8,
+                }}
+              >
+                Imagen Original
+              </p>
+              {reviewModal.currentImage?.original_image_url ? (
+                <img
+                  src={reviewModal.currentImage.original_image_url}
+                  style={{
+                    maxWidth: "90%",
+                    maxHeight: "70vh",
+                    objectFit: "contain",
+                    borderRadius: 12,
+                  }}
+                  alt="Original"
+                />
+              ) : (
+                <div
+                  style={{
+                    width: "80%",
+                    height: "60vh",
+                    background: "#333",
+                    borderRadius: 12,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#999",
+                  }}
+                >
+                  Sin imagen original
+                </div>
+              )}
+            </div>
+
+            {/* LADO DERECHO: Imagen generada */}
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "100%",
+                paddingLeft: 20,
+              }}
+            >
+              <p
+                style={{
+                  color: "#fff",
+                  marginBottom: 10,
+                  fontSize: 14,
+                  opacity: 0.8,
+                }}
+              >
+                Imagen Generada
+              </p>
+              {reviewModal.currentImage?.url && (
+                <img
+                  src={reviewModal.currentImage.url}
+                  style={{
+                    maxWidth: "90%",
+                    maxHeight: "70vh",
+                    objectFit: "contain",
+                    borderRadius: 12,
+                  }}
+                  alt="Generada"
+                />
+              )}
+            </div>
+          </div>
+
+          {/* Botones de acción centrados */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              gap: 20,
+              padding: "20px 0",
+            }}
+          >
+            <button
+              onClick={() => handleReviewAction("approved")}
+              style={{
+                background: "#10b981",
+                color: "#fff",
+                border: "none",
+                borderRadius: 12,
+                padding: "12px 32px",
+                fontSize: 16,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              ✓ Aprobar
+            </button>
+            <button
+              onClick={() => handleReviewAction("rejected")}
+              style={{
+                background: "#ef4444",
+                color: "#fff",
+                border: "none",
+                borderRadius: 12,
+                padding: "12px 32px",
+                fontSize: 16,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              ✕ Rechazar
+            </button>
+          </div>
+
+          {/* Carrusel de miniaturas */}
+          <div
+            style={{
+              padding: "20px",
+              borderTop: "2px solid rgba(255,255,255,0.2)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                gap: 12,
+                overflowX: "auto",
+                paddingBottom: 10,
+              }}
+            >
+              {reviewModal.imagesInReference.map((img, idx) => (
+                <div
+                  key={img.id}
+                  onClick={() =>
+                    setReviewModal({
+                      ...reviewModal,
+                      currentImage: img,
+                      currentIndex: idx,
+                    })
+                  }
+                  style={{
+                    minWidth: 80,
+                    height: 80,
+                    borderRadius: 8,
+                    overflow: "hidden",
+                    cursor: "pointer",
+                    border:
+                      img.id === reviewModal.currentImage?.id
+                        ? "3px solid #ff6b6b"
+                        : "3px solid transparent",
+                    opacity: img.id === reviewModal.currentImage?.id ? 1 : 0.6,
+                  }}
+                >
+                  {img.url && (
+                    <img
+                      src={img.url}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                      }}
+                      alt={`Miniatura ${idx + 1}`}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
     </div>
