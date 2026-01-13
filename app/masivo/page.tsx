@@ -661,6 +661,16 @@ export default function Page() {
     const reference = activeRef || null;
     const asin = activeAsin || null;
 
+const handleSendToProject = async () => {
+    if (!selectedProjectId) {
+      alert("Selecciona un proyecto antes de enviar imágenes.");
+      return;
+    }
+
+    // 🆕 Usar activeRef y activeAsin que ya toman en cuenta zipNameRef y zipNameAsin
+    const reference = activeRef || null;
+    const asin = activeAsin || null;
+
     if (!reference) {
       alert("Debes especificar una referencia en el campo correspondiente.");
       return;
@@ -707,6 +717,19 @@ export default function Page() {
       return;
     }
 
+    // 🆕 CAPTURAR URL ORIGINAL DE REFERENCIA
+    let originalImageUrl: string | null = null;
+
+    if (mode === "csv" || mode === "url") {
+      // En modo CSV/URL: usar la primera URL habilitada
+      const enabledUrls = urls.filter((_, i) => urlEnabled[i]);
+      originalImageUrl = enabledUrls.length > 0 ? enabledUrls[0] : null;
+    } else if (mode === "local") {
+      // En modo Local: usar la primera imagen local habilitada (ya es base64)
+      const enabledLocalImages = localImages.filter((_, i) => localEnabled[i]);
+      originalImageUrl = enabledLocalImages.length > 0 ? enabledLocalImages[0] : null;
+    }
+
     setIsSending(true);
 
     try {
@@ -716,6 +739,7 @@ export default function Page() {
         body: JSON.stringify({
           projectId: selectedProjectId,
           images,
+          originalImageUrl, // 🆕 Añadir URL original
         }),
       });
 
