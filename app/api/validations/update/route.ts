@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { createImageValidation, updateImageValidation } from "@/lib/services/supabase.service";
+import { createImageValidation } from "@/lib/services/supabase.service";
 
 export async function POST(req: Request) {
   try {
@@ -38,12 +38,11 @@ export async function POST(req: Request) {
 
     // Crear registro en image_validations
     try {
-      await createImageValidation({
-        image_id: imageId,
-        status,
-        notes: notes || null,
-        validated_by: validatedBy || null,
-      });
+      await createImageValidation(
+        imageId,
+        status as "pending" | "approved" | "rejected" | "needs_edit",
+        notes || undefined
+      );
     } catch (validationError) {
       console.warn("Error creating validation record:", validationError);
       // No fallar si esto falla, el estado ya se actualizó
