@@ -225,7 +225,7 @@ but use my product exactly as it appears — hyperrealistic, with 100% accurate 
 
 type Overrides = {
   names: Record<string, string | undefined>;
-  prompts: Record<string, string | undefined);
+  prompts: Record<string, string | undefined>;  // ✅ BIEN - punto y coma
 };
 
 /* ===========================
