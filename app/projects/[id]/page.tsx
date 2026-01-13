@@ -13,7 +13,7 @@ type ProjectImage = {
   index?: number;
   url?: string;
   validation_status?: "pending" | "approved" | "rejected";
-  original_image_url?: string; // 🆕 AÑADIDO
+  original_image_url?: string;
 };
 
 const CHUNK_SIZE = 100;
@@ -38,7 +38,8 @@ export default function ProjectPage() {
 
   const [order, setOrder] = useState<"oldest" | "newest">("oldest");
 
-  const [validationFilter, setValidationFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
+  // 🔧 CORREGIDO: Por defecto mostrar solo pendientes
+  const [validationFilter, setValidationFilter] = useState<"all" | "pending" | "approved" | "rejected">("pending");
 
   // 🆕 NUEVO: Estado del modal de revisión
   const [reviewModal, setReviewModal] = useState<{
@@ -106,26 +107,32 @@ export default function ProjectPage() {
   };
 
   /* ======================================================
-     🆕 NUEVO: MODAL DE REVISIÓN COMPARATIVA
+     🔧 CORREGIDO: MODAL DE REVISIÓN COMPARATIVA
   ====================================================== */
   const openReviewModal = (image: ProjectImage) => {
-    // Filtrar imágenes de la misma referencia que estén pendientes
+    // 🔧 CORREGIDO: Filtrar TODAS las imágenes de la misma referencia (sin importar estado)
     const sameReference = images.filter(
-      (img) =>
-        img.reference === image.reference &&
-        img.validation_status === "pending"
+      (img) => img.reference === image.reference
     );
 
-    // Ordenar para que la imagen clickeada sea la primera
-    const sorted = [
+    // Ordenar: pendientes primero, luego aprobadas, luego rechazadas
+    const sorted = sameReference.sort((a, b) => {
+      const statusOrder = { pending: 0, approved: 1, rejected: 2 };
+      const aOrder = statusOrder[a.validation_status || "pending"];
+      const bOrder = statusOrder[b.validation_status || "pending"];
+      return aOrder - bOrder;
+    });
+
+    // Asegurar que la imagen clickeada sea la primera
+    const reordered = [
       image,
-      ...sameReference.filter((img) => img.id !== image.id),
+      ...sorted.filter((img) => img.id !== image.id),
     ];
 
     setReviewModal({
       open: true,
       currentImage: image,
-      imagesInReference: sorted,
+      imagesInReference: reordered,
       currentIndex: 0,
     });
   };
@@ -135,23 +142,27 @@ export default function ProjectPage() {
 
     await updateValidationStatus(reviewModal.currentImage.id, status);
 
-    // Eliminar la imagen actual de la lista
+    // Buscar la siguiente imagen PENDIENTE de la misma referencia
     const remaining = reviewModal.imagesInReference.filter(
-      (img) => img.id !== reviewModal.currentImage?.id
+      (img) => 
+        img.id !== reviewModal.currentImage?.id && 
+        img.validation_status === "pending"
     );
 
     if (remaining.length === 0) {
-      // No quedan más imágenes de esta referencia
+      // No quedan más imágenes pendientes de esta referencia
       setReviewModal(null);
-      alert("✅ Revisión de esta referencia completada");
+      alert("✅ Revisión de imágenes pendientes completada");
       return;
     }
 
-    // Cargar la siguiente imagen
+    // Cargar la siguiente imagen pendiente
     setReviewModal({
       ...reviewModal,
       currentImage: remaining[0],
-      imagesInReference: remaining,
+      imagesInReference: reviewModal.imagesInReference.filter(
+        (img) => img.id !== reviewModal.currentImage?.id
+      ),
       currentIndex: 0,
     });
   };
@@ -168,7 +179,7 @@ export default function ProjectPage() {
   }, [reviewModal]);
 
   /* ======================================================
-     🆕 NUEVO: FILTRADO POR VALIDACIÓN
+     FILTRADO POR VALIDACIÓN
   ====================================================== */
   const filteredImages = images.filter((img) => {
     if (validationFilter === "all") return true;
@@ -302,7 +313,7 @@ export default function ProjectPage() {
   };
 
   /* ======================================================
-     🆕 NUEVO: ESTADÍSTICAS DE VALIDACIÓN
+     ESTADÍSTICAS DE VALIDACIÓN
   ====================================================== */
   const stats = {
     total: images.length,
@@ -348,7 +359,7 @@ export default function ProjectPage() {
           Imágenes en proyecto: {images.length}
         </p>
 
-        {/* 🆕 NUEVO: Estadísticas de validación */}
+        {/* Estadísticas de validación */}
         <div
           style={{
             display: "flex",
@@ -394,7 +405,7 @@ export default function ProjectPage() {
           </div>
         )}
 
-        {/* 🆕 NUEVO: Filtros de validación */}
+        {/* Filtros de validación */}
         <div
           style={{
             display: "flex",
@@ -404,7 +415,7 @@ export default function ProjectPage() {
             flexWrap: "wrap",
           }}
         >
-          {(["all", "pending", "approved", "rejected"] as const).map((filter) => (
+          {(["pending", "approved", "rejected", "all"] as const).map((filter) => (
             <button
               key={filter}
               className="btn-zoom"
@@ -505,9 +516,8 @@ export default function ProjectPage() {
                     ? "3px solid #ef4444"
                     : "3px solid transparent",
                 }}
-                onClick={() => openReviewModal(img)} // 🆕 CAMBIADO: Abre modal de revisión
+                onClick={() => openReviewModal(img)}
               >
-                {/* 🆕 NUEVO: Indicador de estado */}
                 <div
                   style={{
                     position: "absolute",
@@ -634,7 +644,7 @@ export default function ProjectPage() {
 
       <div style={{ width: 22, background: "#ff6b6b" }} />
 
-      {/* 🆕 NUEVO: MODAL DE REVISIÓN COMPARATIVA */}
+      {/* 🔧 CORREGIDO: MODAL DE REVISIÓN COMPARATIVA */}
       {reviewModal?.open && (
         <div
           style={{
@@ -819,7 +829,7 @@ export default function ProjectPage() {
             </button>
           </div>
 
-          {/* Carrusel de miniaturas */}
+          {/* 🔧 CORREGIDO: Carrusel de miniaturas - Muestra TODAS las de la referencia */}
           <div
             style={{
               padding: "20px",
@@ -850,6 +860,7 @@ export default function ProjectPage() {
                     borderRadius: 8,
                     overflow: "hidden",
                     cursor: "pointer",
+                    position: "relative",
                     border:
                       img.id === reviewModal.currentImage?.id
                         ? "3px solid #ff6b6b"
@@ -867,6 +878,30 @@ export default function ProjectPage() {
                       }}
                       alt={`Miniatura ${idx + 1}`}
                     />
+                  )}
+                  {/* Indicador de estado en miniatura */}
+                  {img.validation_status !== "pending" && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: 4,
+                        right: 4,
+                        width: 20,
+                        height: 20,
+                        borderRadius: "50%",
+                        background: 
+                          img.validation_status === "approved"
+                            ? "#10b981"
+                            : "#ef4444",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 12,
+                        color: "#fff",
+                      }}
+                    >
+                      {img.validation_status === "approved" ? "✓" : "✕"}
+                    </div>
                   )}
                 </div>
               ))}
