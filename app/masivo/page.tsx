@@ -225,7 +225,7 @@ but use my product exactly as it appears — hyperrealistic, with 100% accurate 
 
 type Overrides = {
   names: Record<string, string | undefined>;
-  prompts: Record<string, string | undefined>;
+  prompts: Record<string, string | undefined);
 };
 
 /* ===========================
@@ -707,6 +707,19 @@ export default function Page() {
       return;
     }
 
+    // 🆕 CAPTURAR URL ORIGINAL DE REFERENCIA
+    let originalImageUrl: string | null = null;
+
+    if (mode === "csv" || mode === "url") {
+      // En modo CSV/URL: usar la primera URL habilitada
+      const enabledUrls = urls.filter((_, i) => urlEnabled[i]);
+      originalImageUrl = enabledUrls.length > 0 ? enabledUrls[0] : null;
+    } else if (mode === "local") {
+      // En modo Local: usar la primera imagen local habilitada (ya es base64)
+      const enabledLocalImages = localImages.filter((_, i) => localEnabled[i]);
+      originalImageUrl = enabledLocalImages.length > 0 ? enabledLocalImages[0] : null;
+    }
+
     setIsSending(true);
 
     try {
@@ -716,6 +729,7 @@ export default function Page() {
         body: JSON.stringify({
           projectId: selectedProjectId,
           images,
+          originalImageUrl, // 🆕 Añadir este campo
         }),
       });
 
@@ -1450,7 +1464,7 @@ export default function Page() {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <h2 style={{ margin: 0, fontWeight: 800, color: "var(--brand-accent)" }}>
             Kreative 360º · Generador de Imágenes Masivo IA
-          </h2>
+          </h1>
         </div>
 
         <p style={{ marginTop: 6, color: "#4b5563" }}>

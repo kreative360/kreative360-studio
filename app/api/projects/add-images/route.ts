@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from "uuid";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { projectId, images } = body;
+    const { projectId, images, originalImageUrl } = body; // 🆕 Nueva propiedad
 
     if (!projectId || typeof projectId !== "string") {
       return NextResponse.json(
@@ -55,6 +55,7 @@ export async function POST(req: Request) {
         try {
           const productRef = await getOrCreateProductReference(reference, {
             asin: asin || null,
+            original_image_url: originalImageUrl || null, // 🆕 Guardar URL original
           });
           productReferenceId = productRef.id;
         } catch (error) {
@@ -80,20 +81,21 @@ export async function POST(req: Request) {
 
       if (uploadError) throw uploadError;
 
-      // 🆕 GUARDAR CON reference_id
+      // 🆕 GUARDAR CON reference_id y original_image_url
       const { data, error: dbError } = await supabaseAdmin
         .from("project_images")
         .insert({
           project_id: projectId,
           reference: reference ?? null,
-          reference_id: productReferenceId, // 🆕 Nueva columna
+          reference_id: productReferenceId,
           asin: asin ?? null,
           image_index,
           filename,
           mime,
           storage_path: storagePath,
-          generation_mode: "manual", // 🆕 Por defecto manual
-          validation_status: "pending", // 🆕 Por defecto pending
+          generation_mode: "manual",
+          validation_status: "pending",
+          original_image_url: originalImageUrl || null, // 🆕 Guardar URL original
         })
         .select()
         .single();
