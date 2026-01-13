@@ -661,16 +661,6 @@ export default function Page() {
     const reference = activeRef || null;
     const asin = activeAsin || null;
 
-const handleSendToProject = async () => {
-    if (!selectedProjectId) {
-      alert("Selecciona un proyecto antes de enviar imágenes.");
-      return;
-    }
-
-    // 🆕 Usar activeRef y activeAsin que ya toman en cuenta zipNameRef y zipNameAsin
-    const reference = activeRef || null;
-    const asin = activeAsin || null;
-
     if (!reference) {
       alert("Debes especificar una referencia en el campo correspondiente.");
       return;
@@ -759,7 +749,7 @@ const handleSendToProject = async () => {
       setIsSending(false);
     }
   };
-
+  
   const clearAllImages = () => {
     if (!Object.keys(resultsByRef).length && urls.length === 0 && localImages.length === 0) return;
     if (confirm("¿Limpiar panel? Esto borra imágenes generadas, numeración y fuentes cargadas (URLs/Local).")) {
