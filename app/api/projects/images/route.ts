@@ -31,7 +31,8 @@ export async function GET(request: Request) {
         created_at
       `)
       .eq("project_id", projectId)
-      // 👇 CLAVE ABSOLUTA: ORDEN REAL POR FECHA
+      // 🔧 ORDENAR: Primero por índice, luego por fecha
+      .order("image_index", { ascending: true })
       .order("created_at", { ascending: true });
 
     if (error) {
