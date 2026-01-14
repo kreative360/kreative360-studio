@@ -31,9 +31,9 @@ export async function GET(request: Request) {
         created_at
       `)
       .eq("project_id", projectId)
-      // 🔧 ORDENAR: Primero por índice, luego por fecha
-      .order("image_index", { ascending: true })
-      .order("created_at", { ascending: true });
+      // 🔧 ORDENAR: Primero por referencia, luego por índice
+      .order("reference", { ascending: true })
+      .order("image_index", { ascending: true });
 
     if (error) {
       console.error("Supabase error:", error);
