@@ -22,6 +22,76 @@ export async function POST(req: Request) {
       );
     }
 
+    // 🆕 PASO 1: Obtener la imagen actual ANTES de actualizar
+    const { data: currentImage } = await supabaseAdmin
+      .from("project_images")
+      .select("id, validation_status, image_index, reference, project_id, filename, storage_path")
+      .eq("id", imageId)
+      .single();
+
+    if (!currentImage) {
+      return NextResponse.json(
+        { success: false, error: "Imagen no encontrada" },
+        { status: 404 }
+      );
+    }
+
+    // 🆕 PASO 2: Detectar si estamos aprobando una rechazada
+    const wasRejected = currentImage.validation_status === "rejected";
+    const isBeingApproved = status === "approved" || status === "pending";
+
+    let newIndex = currentImage.image_index;
+
+    if (wasRejected && isBeingApproved && currentImage.reference) {
+      // 🔧 VERIFICAR CONFLICTO DE NUMERACIÓN
+      const { data: conflictImage } = await supabaseAdmin
+        .from("project_images")
+        .select("id, image_index")
+        .eq("project_id", currentImage.project_id)
+        .eq("reference", currentImage.reference)
+        .eq("image_index", currentImage.image_index)
+        .neq("id", imageId) // Excluir la imagen actual
+        .neq("validation_status", "rejected") // Solo imágenes activas
+        .single();
+
+      if (conflictImage) {
+        // 🔧 HAY CONFLICTO: Renumerar al final de la cola
+        const { data: allImages } = await supabaseAdmin
+          .from("project_images")
+          .select("image_index")
+          .eq("project_id", currentImage.project_id)
+          .eq("reference", currentImage.reference)
+          .neq("validation_status", "rejected")
+          .order("image_index", { ascending: true });
+
+        if (allImages && allImages.length > 0) {
+          const maxIndex = Math.max(...allImages.map(img => img.image_index));
+          newIndex = maxIndex + 1;
+
+          // Actualizar el filename con el nuevo índice
+          const oldFilename = currentImage.filename;
+          const extension = oldFilename.split('.').pop();
+          const newFilename = `${currentImage.reference}_${newIndex}.${extension}`;
+
+          // Actualizar tanto el índice como el filename
+          const { error: renumberError } = await supabaseAdmin
+            .from("project_images")
+            .update({ 
+              image_index: newIndex,
+              filename: newFilename
+            })
+            .eq("id", imageId);
+
+          if (renumberError) {
+            console.error("Error renumerando imagen:", renumberError);
+            // Continuar de todas formas
+          } else {
+            console.log(`✅ Imagen renumerada: ${oldFilename} → ${newFilename}`);
+          }
+        }
+      }
+    }
+
     // Actualizar el estado de validación en project_images
     const { error: updateError } = await supabaseAdmin
       .from("project_images")
@@ -58,7 +128,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       image: updatedImage,
-      message: `Imagen ${status === "approved" ? "aprobada" : status === "rejected" ? "rechazada" : "marcada como pendiente"}`,
+      message: `Imagen ${status === "approved" ? "aprobada" : status === "rejected" ? "rechazada" : "marcada como pendiente"}${newIndex !== currentImage.image_index ? ` y renumerada a #${newIndex}` : ""}`,
     });
   } catch (error: any) {
     console.error("Error in validations/update:", error);
