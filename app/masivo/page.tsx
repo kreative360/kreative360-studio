@@ -335,6 +335,7 @@ export default function Page() {
 
   /* ====== Resultados por REFERENCIA ====== */
   const [resultsByRef, setResultsByRef] = useState<Record<string, GenMap>>({});
+  const [promptsByRef, setPromptsByRef] = useState<Record<string, string>>({}); // 🆕 Guardar prompts usados
 
   /* ====== ESTADO DE CARGA POR TARJETA ====== */
   const [loadingSet, setLoadingSet] = useState<Set<string>>(new Set());
@@ -708,21 +709,21 @@ export default function Page() {
     }
 
     // 🆕 CAPTURAR URL ORIGINAL DE REFERENCIA
-let originalImageUrl: string | null = null;
+    let originalImageUrl: string | null = null;
 
-if (mode === "csv") {
-  // En modo CSV: usar la PRIMERA URL del batch item (columna C del CSV)
-  const currentBatchItem = batch.items[batch.index];
-  originalImageUrl = currentBatchItem?.urls?.[0] || null;
-} else if (mode === "url") {
-  // En modo URL: usar la primera URL habilitada
-  const enabledUrls = urls.filter((_, i) => urlEnabled[i]);
-  originalImageUrl = enabledUrls.length > 0 ? enabledUrls[0] : null;
-} else if (mode === "local") {
-  // En modo Local: usar la primera imagen local habilitada (ya es base64)
-  const enabledLocalImages = localImages.filter((_, i) => localEnabled[i]);
-  originalImageUrl = enabledLocalImages.length > 0 ? enabledLocalImages[0] : null;
-}
+    if (mode === "csv") {
+      // En modo CSV: usar la PRIMERA URL del batch item (columna C del CSV)
+      const currentBatchItem = batch.items[batch.index];
+      originalImageUrl = currentBatchItem?.urls?.[0] || null;
+    } else if (mode === "url") {
+      // En modo URL: usar la primera URL habilitada
+      const enabledUrls = urls.filter((_, i) => urlEnabled[i]);
+      originalImageUrl = enabledUrls.length > 0 ? enabledUrls[0] : null;
+    } else if (mode === "local") {
+      // En modo Local: usar la primera imagen local habilitada (ya es base64)
+      const enabledLocalImages = localImages.filter((_, i) => localEnabled[i]);
+      originalImageUrl = enabledLocalImages.length > 0 ? enabledLocalImages[0] : null;
+    }
 
     setIsSending(true);
 
@@ -734,6 +735,7 @@ if (mode === "csv") {
           projectId: selectedProjectId,
           images,
           originalImageUrl, // 🆕 Añadir URL original
+          promptUsed: promptsByRef[activeRef] || null, // 🆕 Añadir prompt usado
         }),
       });
 
@@ -1053,8 +1055,18 @@ if (mode === "csv") {
           engine,
         }),
       });
+
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Error en la generación");
+      
+      // 🆕 Guardar el prompt usado para esta referencia
+      if (data.prompt_used) {
+        setPromptsByRef((prev) => ({
+          ...prev,
+          [activeRef]: data.prompt_used
+        }));
+      }
+      
       setResultsByRef((prev) => {
         const refKey = activeRef;
         const byRef = { ...(prev[refKey] || {}) };
@@ -1901,7 +1913,7 @@ if (mode === "csv") {
               border: "1px solid rgba(0,0,0,.1)",
             }}
             title="Marcar referencia activa como finalizada"
-          >
+            >
             Marcar referencia como finalizada
           </button>
         </div>
