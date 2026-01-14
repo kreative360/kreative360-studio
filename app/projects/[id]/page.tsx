@@ -14,6 +14,7 @@ type ProjectImage = {
   url?: string;
   validation_status?: "pending" | "approved" | "rejected";
   original_image_url?: string;
+  prompt_used?: string; // 🆕 AÑADIDO
 };
 
 const CHUNK_SIZE = 100;
@@ -38,7 +39,6 @@ export default function ProjectPage() {
 
   const [order, setOrder] = useState<"oldest" | "newest">("oldest");
 
-  // 🔧 CORREGIDO: Por defecto mostrar solo pendientes
   const [validationFilter, setValidationFilter] = useState<"all" | "pending" | "approved" | "rejected">("pending");
 
   // 🆕 NUEVO: Estado del modal de revisión
@@ -48,6 +48,9 @@ export default function ProjectPage() {
     imagesInReference: ProjectImage[];
     currentIndex: number;
   } | null>(null);
+
+  // 🆕 Estado para regeneración
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
   /* ======================================================
      CARGA DE IMÁGENES (REAL)
@@ -110,12 +113,10 @@ export default function ProjectPage() {
      🔧 CORREGIDO: MODAL DE REVISIÓN COMPARATIVA
   ====================================================== */
   const openReviewModal = (image: ProjectImage) => {
-    // 🔧 CORREGIDO: Filtrar TODAS las imágenes de la misma referencia (sin importar estado)
     const sameReference = images.filter(
       (img) => img.reference === image.reference
     );
 
-    // Ordenar: pendientes primero, luego aprobadas, luego rechazadas
     const sorted = sameReference.sort((a, b) => {
       const statusOrder = { pending: 0, approved: 1, rejected: 2 };
       const aOrder = statusOrder[a.validation_status || "pending"];
@@ -123,7 +124,6 @@ export default function ProjectPage() {
       return aOrder - bOrder;
     });
 
-    // Asegurar que la imagen clickeada sea la primera
     const reordered = [
       image,
       ...sorted.filter((img) => img.id !== image.id),
@@ -142,7 +142,6 @@ export default function ProjectPage() {
 
     await updateValidationStatus(reviewModal.currentImage.id, status);
 
-    // Buscar la siguiente imagen PENDIENTE de la misma referencia
     const remaining = reviewModal.imagesInReference.filter(
       (img) => 
         img.id !== reviewModal.currentImage?.id && 
@@ -150,13 +149,11 @@ export default function ProjectPage() {
     );
 
     if (remaining.length === 0) {
-      // No quedan más imágenes pendientes de esta referencia
       setReviewModal(null);
       alert("✅ Revisión de imágenes pendientes completada");
       return;
     }
 
-    // Cargar la siguiente imagen pendiente
     setReviewModal({
       ...reviewModal,
       currentImage: remaining[0],
@@ -165,6 +162,83 @@ export default function ProjectPage() {
       ),
       currentIndex: 0,
     });
+  };
+
+  /* ======================================================
+     🆕 FUNCIÓN DE REGENERACIÓN
+  ====================================================== */
+  const handleRegenerate = async () => {
+    if (!reviewModal || !reviewModal.currentImage) return;
+
+    const currentImg = reviewModal.currentImage;
+
+    if (!currentImg.prompt_used || !currentImg.original_image_url) {
+      alert("No hay prompt o imagen original disponible para regenerar");
+      return;
+    }
+
+    setIsRegenerating(true);
+
+    try {
+      // Llamar a la API de generación con el mismo prompt
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          refs: [currentImg.original_image_url],
+          count: 1,
+          overridePrompt: currentImg.prompt_used,
+          width: 1024,
+          height: 1024,
+          format: "jpg",
+          engine: "v2",
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.images || data.images.length === 0) {
+        throw new Error("Error generando imagen");
+      }
+
+      // Guardar la nueva versión en el proyecto
+      const newImage = data.images[0];
+      const saveRes = await fetch("/api/projects/add-images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId,
+          images: [{
+            base64: newImage.base64,
+            mime: newImage.mime || "image/jpeg",
+            filename: `${currentImg.reference}_v${Date.now()}.jpg`,
+            reference: currentImg.reference,
+            asin: currentImg.asin,
+            image_index: currentImg.index || 0,
+          }],
+          originalImageUrl: currentImg.original_image_url,
+          promptUsed: currentImg.prompt_used,
+        }),
+      });
+
+      const saveData = await saveRes.json();
+
+      if (!saveRes.ok || !saveData.success) {
+        throw new Error("Error guardando imagen regenerada");
+      }
+
+      alert("✅ Imagen regenerada exitosamente");
+      
+      // Recargar imágenes y cerrar modal
+      await loadImages();
+      setReviewModal(null);
+
+    } catch (error: any) {
+      console.error("Error regenerando:", error);
+      alert("❌ Error regenerando la imagen");
+    } finally {
+      setIsRegenerating(false);
+    }
   };
 
   // 🆕 Listener de ESC key
@@ -644,7 +718,7 @@ export default function ProjectPage() {
 
       <div style={{ width: 22, background: "#ff6b6b" }} />
 
-      {/* 🔧 CORREGIDO: MODAL DE REVISIÓN COMPARATIVA */}
+      {/* 🆕 MODAL DE REVISIÓN CON REGENERAR */}
       {reviewModal?.open && (
         <div
           style={{
@@ -788,6 +862,43 @@ export default function ProjectPage() {
             </div>
           </div>
 
+          {/* 🆕 Mostrar prompt usado */}
+          {reviewModal.currentImage?.prompt_used && (
+            <div
+              style={{
+                padding: "0 40px 20px",
+                maxWidth: "800px",
+                margin: "0 auto",
+              }}
+            >
+              <p
+                style={{
+                  color: "#fff",
+                  fontSize: 12,
+                  opacity: 0.7,
+                  marginBottom: 4,
+                }}
+              >
+                Prompt utilizado:
+              </p>
+              <p
+                style={{
+                  color: "#fff",
+                  fontSize: 14,
+                  background: "rgba(255,255,255,0.1)",
+                  padding: "12px 16px",
+                  borderRadius: 8,
+                  maxHeight: "80px",
+                  overflowY: "auto",
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                }}
+              >
+                {reviewModal.currentImage.prompt_used}
+              </p>
+            </div>
+          )}
+
           {/* Botones de acción centrados */}
           <div
             style={{
@@ -827,9 +938,26 @@ export default function ProjectPage() {
             >
               ✕ Rechazar
             </button>
+            <button
+              onClick={handleRegenerate}
+              disabled={isRegenerating || !reviewModal.currentImage?.prompt_used}
+              style={{
+                background: isRegenerating ? "#666" : "#3b82f6",
+                color: "#fff",
+                border: "none",
+                borderRadius: 12,
+                padding: "12px 32px",
+                fontSize: 16,
+                fontWeight: 600,
+                cursor: isRegenerating ? "not-allowed" : "pointer",
+                opacity: isRegenerating || !reviewModal.currentImage?.prompt_used ? 0.5 : 1,
+              }}
+            >
+              {isRegenerating ? "⏳ Regenerando..." : "🔄 Regenerar"}
+            </button>
           </div>
 
-          {/* 🔧 CORREGIDO: Carrusel de miniaturas - Muestra TODAS las de la referencia */}
+          {/* Carrusel de miniaturas */}
           <div
             style={{
               padding: "20px",
@@ -879,7 +1007,6 @@ export default function ProjectPage() {
                       alt={`Miniatura ${idx + 1}`}
                     />
                   )}
-                  {/* Indicador de estado en miniatura */}
                   {img.validation_status !== "pending" && (
                     <div
                       style={{
