@@ -101,6 +101,7 @@ export async function POST(req: Request) {
         format,
         engine,
         images,
+        prompt_used: prompt, // 🆕 NUEVO: Devolver el prompt que se usó
       },
       { status: 200 }
     );
@@ -170,4 +171,3 @@ async function resizeAndFormat300DPI(
     mime,
   };
 }
-
