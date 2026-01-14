@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from "uuid";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { projectId, images, originalImageUrl } = body; // 🆕 Nueva propiedad
+    const { projectId, images, originalImageUrl } = body;
 
     if (!projectId || typeof projectId !== "string") {
       return NextResponse.json(
@@ -48,6 +48,48 @@ export async function POST(req: Request) {
         );
       }
 
+      // 🆕 AUTO-REPARAR NUMERACIÓN: Buscar índices faltantes
+      let finalIndex = image_index;
+
+      if (reference) {
+        try {
+          // Obtener todos los índices existentes para esta referencia en este proyecto
+          const { data: existingImages } = await supabaseAdmin
+            .from("project_images")
+            .select("image_index")
+            .eq("project_id", projectId)
+            .eq("reference", reference)
+            .order("image_index", { ascending: true });
+
+          if (existingImages && existingImages.length > 0) {
+            // Extraer los índices que ya existen
+            const usedIndexes = existingImages.map((img) => img.image_index);
+            
+            // Encontrar el primer hueco en la secuencia (0, 1, 2, ...)
+            let foundGap = false;
+            for (let i = 0; i < Math.max(...usedIndexes) + 1; i++) {
+              if (!usedIndexes.includes(i)) {
+                finalIndex = i;
+                foundGap = true;
+                break;
+              }
+            }
+            
+            // Si no hay huecos, usar el siguiente número disponible
+            if (!foundGap) {
+              finalIndex = Math.max(...usedIndexes) + 1;
+            }
+          } else {
+            // Si no hay imágenes previas, empezar en 0
+            finalIndex = 0;
+          }
+        } catch (error) {
+          console.error("Error calculando índice:", error);
+          // Si falla, usar el índice original
+          finalIndex = image_index;
+        }
+      }
+
       // 🆕 CREAR O BUSCAR PRODUCT REFERENCE
       let productReferenceId = null;
       
@@ -55,12 +97,11 @@ export async function POST(req: Request) {
         try {
           const productRef = await getOrCreateProductReference(reference, {
             asin: asin || null,
-            original_image_url: originalImageUrl || null, // 🆕 Guardar URL original
+            original_image_url: originalImageUrl || null,
           });
           productReferenceId = productRef.id;
         } catch (error) {
           console.error("Error creando product reference:", error);
-          // Continuar sin vincular si falla
         }
       }
 
@@ -69,8 +110,12 @@ export async function POST(req: Request) {
         "base64"
       );
 
-      // Storage path
-      const storagePath = `projects/${projectId}/${uuidv4()}-${filename}`;
+      // Storage path con el índice corregido
+      const correctedFilename = reference 
+        ? `${reference}_${finalIndex}.${mime.split('/')[1]}`
+        : filename;
+
+      const storagePath = `projects/${projectId}/${uuidv4()}-${correctedFilename}`;
 
       const { error: uploadError } = await supabaseAdmin.storage
         .from("project-images")
@@ -81,7 +126,7 @@ export async function POST(req: Request) {
 
       if (uploadError) throw uploadError;
 
-      // 🆕 GUARDAR CON reference_id y original_image_url
+      // 🆕 GUARDAR CON EL ÍNDICE CORREGIDO
       const { data, error: dbError } = await supabaseAdmin
         .from("project_images")
         .insert({
@@ -89,13 +134,13 @@ export async function POST(req: Request) {
           reference: reference ?? null,
           reference_id: productReferenceId,
           asin: asin ?? null,
-          image_index,
-          filename,
+          image_index: finalIndex, // 🔧 Usar índice corregido
+          filename: correctedFilename,
           mime,
           storage_path: storagePath,
           generation_mode: "manual",
           validation_status: "pending",
-          original_image_url: originalImageUrl || null, // 🆕 Guardar URL original
+          original_image_url: originalImageUrl || null,
         })
         .select()
         .single();
