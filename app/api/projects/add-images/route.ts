@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from "uuid";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { projectId, images, originalImageUrl } = body;
+    const { projectId, images, originalImageUrl, promptUsed } = body; // 🆕 Añadir promptUsed
 
     if (!projectId || typeof projectId !== "string") {
       return NextResponse.json(
@@ -126,7 +126,7 @@ export async function POST(req: Request) {
 
       if (uploadError) throw uploadError;
 
-      // 🆕 GUARDAR CON EL ÍNDICE CORREGIDO
+      // 🆕 GUARDAR CON EL ÍNDICE CORREGIDO + PROMPT + VERSION
       const { data, error: dbError } = await supabaseAdmin
         .from("project_images")
         .insert({
@@ -134,13 +134,15 @@ export async function POST(req: Request) {
           reference: reference ?? null,
           reference_id: productReferenceId,
           asin: asin ?? null,
-          image_index: finalIndex, // 🔧 Usar índice corregido
+          image_index: finalIndex,
           filename: correctedFilename,
           mime,
           storage_path: storagePath,
           generation_mode: "manual",
           validation_status: "pending",
           original_image_url: originalImageUrl || null,
+          prompt_used: promptUsed || null, // 🆕 Guardar prompt usado
+          version_number: 1, // 🆕 Primera versión
         })
         .select()
         .single();
