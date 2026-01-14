@@ -41,9 +41,16 @@ export async function POST(req: Request) {
     const isBeingApproved = status === "approved" || status === "pending";
 
     let newIndex = currentImage.image_index;
+    let newFilename = currentImage.filename;
 
     if (wasRejected && isBeingApproved && currentImage.reference) {
-      // 🔧 VERIFICAR CONFLICTO DE NUMERACIÓN
+      // 🔧 PRIMERO: Cambiar temporalmente a "pending" para que sea considerada "activa"
+      await supabaseAdmin
+        .from("project_images")
+        .update({ validation_status: "pending" })
+        .eq("id", imageId);
+
+      // 🔧 VERIFICAR CONFLICTO DE NUMERACIÓN (ahora sí se detectará)
       const { data: conflictImage } = await supabaseAdmin
         .from("project_images")
         .select("id, image_index")
@@ -69,33 +76,22 @@ export async function POST(req: Request) {
           newIndex = maxIndex + 1;
 
           // Actualizar el filename con el nuevo índice
-          const oldFilename = currentImage.filename;
-          const extension = oldFilename.split('.').pop();
-          const newFilename = `${currentImage.reference}_${newIndex}.${extension}`;
+          const extension = currentImage.filename.split('.').pop();
+          newFilename = `${currentImage.reference}_${newIndex}.${extension}`;
 
-          // Actualizar tanto el índice como el filename
-          const { error: renumberError } = await supabaseAdmin
-            .from("project_images")
-            .update({ 
-              image_index: newIndex,
-              filename: newFilename
-            })
-            .eq("id", imageId);
-
-          if (renumberError) {
-            console.error("Error renumerando imagen:", renumberError);
-            // Continuar de todas formas
-          } else {
-            console.log(`✅ Imagen renumerada: ${oldFilename} → ${newFilename}`);
-          }
+          console.log(`🔧 CONFLICTO DETECTADO: Renumerando ${currentImage.filename} → ${newFilename}`);
         }
       }
     }
 
-    // Actualizar el estado de validación en project_images
+    // 🔧 ACTUALIZAR: índice, filename Y status definitivo
     const { error: updateError } = await supabaseAdmin
       .from("project_images")
-      .update({ validation_status: status })
+      .update({ 
+        validation_status: status,
+        image_index: newIndex,
+        filename: newFilename
+      })
       .eq("id", imageId);
 
     if (updateError) {
