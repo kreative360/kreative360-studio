@@ -14,7 +14,7 @@ type ProjectImage = {
   url?: string;
   validation_status?: "pending" | "approved" | "rejected";
   original_image_url?: string;
-  prompt_used?: string; // 🆕 AÑADIDO
+  prompt_used?: string;
 };
 
 const CHUNK_SIZE = 100;
@@ -718,7 +718,7 @@ export default function ProjectPage() {
 
       <div style={{ width: 22, background: "#ff6b6b" }} />
 
-      {/* 🆕 MODAL DE REVISIÓN CON REGENERAR */}
+      {/* 🔧 MODAL CORREGIDO CON ALTURA FIJA */}
       {reviewModal?.open && (
         <div
           style={{
@@ -728,23 +728,25 @@ export default function ProjectPage() {
             display: "flex",
             flexDirection: "column",
             zIndex: 9999,
+            overflow: "hidden",
           }}
         >
           {/* Cabecera con contador y botón cerrar */}
           <div
             style={{
-              padding: "20px",
+              padding: "16px 20px",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
               color: "#fff",
+              flexShrink: 0,
             }}
           >
-            <h3 style={{ margin: 0 }}>
+            <h3 style={{ margin: 0, fontSize: 18 }}>
               Revisando: {reviewModal.currentImage?.reference || "Sin referencia"}
             </h3>
             <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
-              <span>
+              <span style={{ fontSize: 14 }}>
                 Imagen {reviewModal.currentIndex + 1} de {reviewModal.imagesInReference.length}
               </span>
               <button
@@ -754,9 +756,9 @@ export default function ProjectPage() {
                   border: "2px solid #fff",
                   color: "#fff",
                   borderRadius: 8,
-                  padding: "8px 16px",
+                  padding: "6px 14px",
                   cursor: "pointer",
-                  fontSize: 16,
+                  fontSize: 14,
                 }}
               >
                 ✕ Cerrar
@@ -764,15 +766,16 @@ export default function ProjectPage() {
             </div>
           </div>
 
-          {/* Contenedor principal con split 50/50 */}
+          {/* 🔧 CONTENEDOR PRINCIPAL CON ALTURA FIJA */}
           <div
             style={{
-              flex: 1,
               display: "grid",
               gridTemplateColumns: "1fr 1fr",
               gap: 0,
               padding: "0 20px",
               alignItems: "center",
+              height: "calc(100vh - 280px)", // 🔧 ALTURA FIJA
+              flexShrink: 0,
             }}
           >
             {/* LADO IZQUIERDO: Imagen original */}
@@ -791,7 +794,7 @@ export default function ProjectPage() {
                 style={{
                   color: "#fff",
                   marginBottom: 10,
-                  fontSize: 14,
+                  fontSize: 13,
                   opacity: 0.8,
                 }}
               >
@@ -801,8 +804,8 @@ export default function ProjectPage() {
                 <img
                   src={reviewModal.currentImage.original_image_url}
                   style={{
-                    maxWidth: "90%",
-                    maxHeight: "70vh",
+                    maxWidth: "95%",
+                    maxHeight: "calc(100vh - 350px)",
                     objectFit: "contain",
                     borderRadius: 12,
                   }}
@@ -812,7 +815,7 @@ export default function ProjectPage() {
                 <div
                   style={{
                     width: "80%",
-                    height: "60vh",
+                    height: "50%",
                     background: "#333",
                     borderRadius: 12,
                     display: "flex",
@@ -841,7 +844,7 @@ export default function ProjectPage() {
                 style={{
                   color: "#fff",
                   marginBottom: 10,
-                  fontSize: 14,
+                  fontSize: 13,
                   opacity: 0.8,
                 }}
               >
@@ -851,8 +854,8 @@ export default function ProjectPage() {
                 <img
                   src={reviewModal.currentImage.url}
                   style={{
-                    maxWidth: "90%",
-                    maxHeight: "70vh",
+                    maxWidth: "95%",
+                    maxHeight: "calc(100vh - 350px)",
                     objectFit: "contain",
                     borderRadius: 12,
                   }}
@@ -862,19 +865,20 @@ export default function ProjectPage() {
             </div>
           </div>
 
-          {/* 🆕 Mostrar prompt usado */}
+          {/* 🔧 PROMPT CON ALTURA FIJA */}
           {reviewModal.currentImage?.prompt_used && (
             <div
               style={{
-                padding: "0 40px 10px",
-                maxWidth: "800px",
+                padding: "8px 40px",
+                maxWidth: "900px",
                 margin: "0 auto",
+                flexShrink: 0,
               }}
             >
               <p
                 style={{
                   color: "#fff",
-                  fontSize: 12,
+                  fontSize: 11,
                   opacity: 0.7,
                   marginBottom: 4,
                 }}
@@ -884,14 +888,15 @@ export default function ProjectPage() {
               <p
                 style={{
                   color: "#fff",
-                  fontSize: 13,
+                  fontSize: 12,
                   background: "rgba(255,255,255,0.1)",
-                  padding: "10px 14px",
-                  borderRadius: 8,
-                  maxHeight: "60px",
+                  padding: "8px 12px",
+                  borderRadius: 6,
+                  maxHeight: "50px",
                   overflowY: "auto",
                   whiteSpace: "pre-wrap",
                   wordBreak: "break-word",
+                  margin: 0,
                 }}
               >
                 {reviewModal.currentImage.prompt_used}
@@ -899,13 +904,14 @@ export default function ProjectPage() {
             </div>
           )}
 
-          {/* Botones de acción centrados */}
+          {/* 🔧 BOTONES CON ALTURA FIJA */}
           <div
             style={{
               display: "flex",
               justifyContent: "center",
-              gap: 20,
-              padding: "20px 0",
+              gap: 16,
+              padding: "16px 0",
+              flexShrink: 0,
             }}
           >
             <button
@@ -914,9 +920,9 @@ export default function ProjectPage() {
                 background: "#10b981",
                 color: "#fff",
                 border: "none",
-                borderRadius: 12,
-                padding: "12px 32px",
-                fontSize: 16,
+                borderRadius: 10,
+                padding: "10px 28px",
+                fontSize: 15,
                 fontWeight: 600,
                 cursor: "pointer",
               }}
@@ -929,9 +935,9 @@ export default function ProjectPage() {
                 background: "#ef4444",
                 color: "#fff",
                 border: "none",
-                borderRadius: 12,
-                padding: "12px 32px",
-                fontSize: 16,
+                borderRadius: 10,
+                padding: "10px 28px",
+                fontSize: 15,
                 fontWeight: 600,
                 cursor: "pointer",
               }}
@@ -945,9 +951,9 @@ export default function ProjectPage() {
                 background: isRegenerating ? "#666" : "#3b82f6",
                 color: "#fff",
                 border: "none",
-                borderRadius: 12,
-                padding: "12px 32px",
-                fontSize: 16,
+                borderRadius: 10,
+                padding: "10px 28px",
+                fontSize: 15,
                 fontWeight: 600,
                 cursor: isRegenerating ? "not-allowed" : "pointer",
                 opacity: isRegenerating || !reviewModal.currentImage?.prompt_used ? 0.5 : 1,
@@ -960,16 +966,17 @@ export default function ProjectPage() {
           {/* Carrusel de miniaturas */}
           <div
             style={{
-              padding: "20px",
+              padding: "16px 20px",
               borderTop: "2px solid rgba(255,255,255,0.2)",
+              flexShrink: 0,
             }}
           >
             <div
               style={{
                 display: "flex",
-                gap: 12,
+                gap: 10,
                 overflowX: "auto",
-                paddingBottom: 10,
+                paddingBottom: 8,
               }}
             >
               {reviewModal.imagesInReference.map((img, idx) => (
@@ -983,8 +990,8 @@ export default function ProjectPage() {
                     })
                   }
                   style={{
-                    minWidth: 80,
-                    height: 80,
+                    minWidth: 70,
+                    height: 70,
                     borderRadius: 8,
                     overflow: "hidden",
                     cursor: "pointer",
@@ -1011,10 +1018,10 @@ export default function ProjectPage() {
                     <div
                       style={{
                         position: "absolute",
-                        top: 4,
-                        right: 4,
-                        width: 20,
-                        height: 20,
+                        top: 3,
+                        right: 3,
+                        width: 18,
+                        height: 18,
                         borderRadius: "50%",
                         background: 
                           img.validation_status === "approved"
@@ -1023,7 +1030,7 @@ export default function ProjectPage() {
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        fontSize: 12,
+                        fontSize: 11,
                         color: "#fff",
                       }}
                     >
