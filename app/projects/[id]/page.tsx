@@ -788,7 +788,7 @@ export default function ProjectPage() {
               gap: 0,
               padding: "0 20px",
               alignItems: "center",
-              height: "calc(100vh - 280px)", // 🔧 ALTURA FIJA
+              height: "calc(100vh - 380px)", // 🔧 Reducido para dar espacio a prompt y miniaturas
               flexShrink: 0,
             }}
           >
@@ -819,7 +819,7 @@ export default function ProjectPage() {
                   src={reviewModal.currentImage.original_image_url}
                   style={{
                     maxWidth: "95%",
-                    maxHeight: "calc(100vh - 350px)",
+                    maxHeight: "calc(100vh - 450px)",
                     objectFit: "contain",
                     borderRadius: 12,
                   }}
@@ -869,7 +869,7 @@ export default function ProjectPage() {
                   src={reviewModal.currentImage.url}
                   style={{
                     maxWidth: "95%",
-                    maxHeight: "calc(100vh - 350px)",
+                    maxHeight: "calc(100vh - 450px)",
                     objectFit: "contain",
                     borderRadius: 12,
                   }}
@@ -905,18 +905,19 @@ export default function ProjectPage() {
               style={{
                 width: "100%",
                 color: "#fff",
-                fontSize: 12,
+                fontSize: 13,
                 background: "rgba(255,255,255,0.1)",
-                padding: "8px 12px",
+                padding: "10px 14px",
                 borderRadius: 6,
-                height: "50px",
+                height: "90px",
                 overflowY: "auto",
                 whiteSpace: "pre-wrap",
                 wordBreak: "break-word",
                 margin: 0,
-                border: "1px solid rgba(255,255,255,0.2)",
+                border: "1px solid rgba(255,255,255,0.3)",
                 fontFamily: "inherit",
-                resize: "none",
+                resize: "vertical",
+                lineHeight: "1.4",
               }}
             />
           </div>
