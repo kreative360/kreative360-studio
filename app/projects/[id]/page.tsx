@@ -51,6 +51,9 @@ export default function ProjectPage() {
 
   // 🆕 Estado para regeneración
   const [isRegenerating, setIsRegenerating] = useState(false);
+  
+  // 🆕 Estado para prompt editable
+  const [editablePrompt, setEditablePrompt] = useState<string>("");
 
   /* ======================================================
      CARGA DE IMÁGENES (REAL)
@@ -129,6 +132,9 @@ export default function ProjectPage() {
       ...sorted.filter((img) => img.id !== image.id),
     ];
 
+    // 🆕 Inicializar el prompt editable con el prompt guardado o vacío
+    setEditablePrompt(image.prompt_used || "");
+
     setReviewModal({
       open: true,
       currentImage: image,
@@ -172,22 +178,30 @@ export default function ProjectPage() {
 
     const currentImg = reviewModal.currentImage;
 
-    if (!currentImg.prompt_used || !currentImg.original_image_url) {
-      alert("No hay prompt o imagen original disponible para regenerar");
+    // 🔧 Validar que haya prompt (editable) y URL original
+    const promptToUse = editablePrompt.trim();
+    
+    if (!promptToUse) {
+      alert("Escribe un prompt para regenerar la imagen");
+      return;
+    }
+
+    if (!currentImg.original_image_url) {
+      alert("No hay imagen original disponible para regenerar");
       return;
     }
 
     setIsRegenerating(true);
 
     try {
-      // Llamar a la API de generación con el mismo prompt
+      // Llamar a la API de generación con el prompt editable
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           refs: [currentImg.original_image_url],
           count: 1,
-          overridePrompt: currentImg.prompt_used,
+          overridePrompt: promptToUse, // 🔧 Usar el prompt editado
           width: 1024,
           height: 1024,
           format: "jpg",
@@ -217,7 +231,7 @@ export default function ProjectPage() {
             image_index: currentImg.index || 0,
           }],
           originalImageUrl: currentImg.original_image_url,
-          promptUsed: currentImg.prompt_used,
+          promptUsed: promptToUse, // 🔧 Guardar el prompt editado
         }),
       });
 
@@ -865,44 +879,47 @@ export default function ProjectPage() {
             </div>
           </div>
 
-          {/* 🔧 PROMPT CON ALTURA FIJA */}
-          {reviewModal.currentImage?.prompt_used && (
-            <div
+          {/* 🔧 PROMPT EDITABLE */}
+          <div
+            style={{
+              padding: "8px 40px",
+              maxWidth: "900px",
+              margin: "0 auto",
+              flexShrink: 0,
+            }}
+          >
+            <p
               style={{
-                padding: "8px 40px",
-                maxWidth: "900px",
-                margin: "0 auto",
-                flexShrink: 0,
+                color: "#fff",
+                fontSize: 11,
+                opacity: 0.7,
+                marginBottom: 4,
               }}
             >
-              <p
-                style={{
-                  color: "#fff",
-                  fontSize: 11,
-                  opacity: 0.7,
-                  marginBottom: 4,
-                }}
-              >
-                Prompt utilizado:
-              </p>
-              <p
-                style={{
-                  color: "#fff",
-                  fontSize: 12,
-                  background: "rgba(255,255,255,0.1)",
-                  padding: "8px 12px",
-                  borderRadius: 6,
-                  maxHeight: "50px",
-                  overflowY: "auto",
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-word",
-                  margin: 0,
-                }}
-              >
-                {reviewModal.currentImage.prompt_used}
-              </p>
-            </div>
-          )}
+              Prompt {editablePrompt ? "(editable)" : "(escribe un prompt para regenerar)"}:
+            </p>
+            <textarea
+              value={editablePrompt}
+              onChange={(e) => setEditablePrompt(e.target.value)}
+              placeholder="Escribe el prompt aquí para regenerar la imagen..."
+              style={{
+                width: "100%",
+                color: "#fff",
+                fontSize: 12,
+                background: "rgba(255,255,255,0.1)",
+                padding: "8px 12px",
+                borderRadius: 6,
+                height: "50px",
+                overflowY: "auto",
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+                margin: 0,
+                border: "1px solid rgba(255,255,255,0.2)",
+                fontFamily: "inherit",
+                resize: "none",
+              }}
+            />
+          </div>
 
           {/* 🔧 BOTONES CON ALTURA FIJA */}
           <div
@@ -946,7 +963,7 @@ export default function ProjectPage() {
             </button>
             <button
               onClick={handleRegenerate}
-              disabled={isRegenerating || !reviewModal.currentImage?.prompt_used}
+              disabled={isRegenerating || !editablePrompt.trim()}
               style={{
                 background: isRegenerating ? "#666" : "#3b82f6",
                 color: "#fff",
@@ -955,8 +972,8 @@ export default function ProjectPage() {
                 padding: "10px 28px",
                 fontSize: 15,
                 fontWeight: 600,
-                cursor: isRegenerating ? "not-allowed" : "pointer",
-                opacity: isRegenerating || !reviewModal.currentImage?.prompt_used ? 0.5 : 1,
+                cursor: isRegenerating || !editablePrompt.trim() ? "not-allowed" : "pointer",
+                opacity: isRegenerating || !editablePrompt.trim() ? 0.5 : 1,
               }}
             >
               {isRegenerating ? "⏳ Regenerando..." : "🔄 Regenerar"}
