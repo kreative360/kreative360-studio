@@ -28,6 +28,7 @@ export async function GET(request: Request) {
         storage_path,
         validation_status,
         original_image_url,
+        prompt_used,
         created_at
       `)
       .eq("project_id", projectId)
@@ -62,6 +63,7 @@ export async function GET(request: Request) {
           url: urlData.publicUrl,
           validation_status: img.validation_status || "pending",
           original_image_url: img.original_image_url || null,
+          prompt_used: img.prompt_used || null, // 🆕 AÑADIDO
         };
       })
       .filter(Boolean);
