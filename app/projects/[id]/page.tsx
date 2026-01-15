@@ -735,7 +735,7 @@ export default function ProjectPage() {
 
       <div style={{ width: 22, background: "#ff6b6b" }} />
 
-      {/* 🔧 MODAL CORREGIDO CON ALTURA FIJA */}
+      {/* 🆕 MODAL REDISEÑADO CON LAYOUT CORRECTO */}
       {reviewModal?.open && (
         <div
           style={{
@@ -748,7 +748,7 @@ export default function ProjectPage() {
             overflow: "hidden",
           }}
         >
-          {/* Cabecera con contador y botón cerrar */}
+          {/* Cabecera */}
           <div
             style={{
               padding: "16px 20px",
@@ -783,19 +783,19 @@ export default function ProjectPage() {
             </div>
           </div>
 
-          {/* 🔧 CONTENEDOR PRINCIPAL CON ALTURA FIJA */}
+          {/* IMÁGENES GRANDES */}
           <div
             style={{
               display: "grid",
               gridTemplateColumns: "1fr 1fr",
-              gap: 0,
+              gap: 20,
               padding: "0 20px",
               alignItems: "center",
-              height: "calc(100vh - 330px)", // 🔧 Más espacio para imágenes más grandes
+              height: "calc(100vh - 300px)",
               flexShrink: 0,
             }}
           >
-            {/* LADO IZQUIERDO: Imagen original */}
+            {/* Imagen Original con ZOOM */}
             <div
               style={{
                 display: "flex",
@@ -803,18 +803,9 @@ export default function ProjectPage() {
                 alignItems: "center",
                 justifyContent: "center",
                 height: "100%",
-                borderRight: "2px solid rgba(255,255,255,0.2)",
-                paddingRight: 20,
               }}
             >
-              <p
-                style={{
-                  color: "#fff",
-                  marginBottom: 10,
-                  fontSize: 13,
-                  opacity: 0.8,
-                }}
-              >
+              <p style={{ color: "#fff", marginBottom: 10, fontSize: 13, opacity: 0.8 }}>
                 Imagen Original
               </p>
               {reviewModal.currentImage?.original_image_url ? (
@@ -822,8 +813,8 @@ export default function ProjectPage() {
                   style={{ position: "relative", display: "inline-block" }}
                   onMouseMove={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect();
-                    const x = ((e.clientX - rect.left) / rect.width) * 100;
-                    const y = ((e.clientY - rect.top) / rect.height) * 100;
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
                     setZoomImage({
                       src: reviewModal.currentImage!.original_image_url!,
                       x,
@@ -835,11 +826,11 @@ export default function ProjectPage() {
                   <img
                     src={reviewModal.currentImage.original_image_url}
                     style={{
-                      maxWidth: "95%",
-                      maxHeight: "calc(100vh - 400px)",
+                      maxWidth: "100%",
+                      maxHeight: "calc(100vh - 350px)",
                       objectFit: "contain",
                       borderRadius: 12,
-                      cursor: "zoom-in",
+                      cursor: "crosshair",
                       display: "block",
                     }}
                     alt="Original"
@@ -847,28 +838,29 @@ export default function ProjectPage() {
                   {zoomImage && zoomImage.src === reviewModal.currentImage.original_image_url && (
                     <div
                       style={{
-                        position: "absolute",
-                        top: 10,
-                        right: 10,
-                        width: 150,
-                        height: 150,
+                        position: "fixed",
+                        left: zoomImage.x + 20,
+                        top: zoomImage.y + 20,
+                        width: 200,
+                        height: 200,
                         border: "3px solid #fff",
                         borderRadius: 8,
                         overflow: "hidden",
                         pointerEvents: "none",
                         background: "#000",
-                        boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.8)",
+                        zIndex: 10000,
                       }}
                     >
-                      <div
+                      <img
+                        src={zoomImage.src}
                         style={{
-                          width: "300%",
-                          height: "300%",
-                          backgroundImage: `url(${zoomImage.src})`,
-                          backgroundSize: "cover",
-                          backgroundPosition: `${zoomImage.x}% ${zoomImage.y}%`,
-                          transform: `translate(-${zoomImage.x}%, -${zoomImage.y}%)`,
+                          width: "400%",
+                          height: "400%",
+                          objectFit: "cover",
+                          transform: `translate(-${(zoomImage.x / (e.currentTarget?.offsetWidth || 1)) * 400}%, -${(zoomImage.y / (e.currentTarget?.offsetHeight || 1)) * 400}%)`,
                         }}
+                        alt="Zoom"
                       />
                     </div>
                   )}
@@ -877,7 +869,7 @@ export default function ProjectPage() {
                 <div
                   style={{
                     width: "80%",
-                    height: "50%",
+                    height: "60%",
                     background: "#333",
                     borderRadius: 12,
                     display: "flex",
@@ -891,7 +883,7 @@ export default function ProjectPage() {
               )}
             </div>
 
-            {/* LADO DERECHO: Imagen generada */}
+            {/* Imagen Generada con ZOOM */}
             <div
               style={{
                 display: "flex",
@@ -899,17 +891,9 @@ export default function ProjectPage() {
                 alignItems: "center",
                 justifyContent: "center",
                 height: "100%",
-                paddingLeft: 20,
               }}
             >
-              <p
-                style={{
-                  color: "#fff",
-                  marginBottom: 10,
-                  fontSize: 13,
-                  opacity: 0.8,
-                }}
-              >
+              <p style={{ color: "#fff", marginBottom: 10, fontSize: 13, opacity: 0.8 }}>
                 Imagen Generada
               </p>
               {reviewModal.currentImage?.url && (
@@ -917,8 +901,8 @@ export default function ProjectPage() {
                   style={{ position: "relative", display: "inline-block" }}
                   onMouseMove={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect();
-                    const x = ((e.clientX - rect.left) / rect.width) * 100;
-                    const y = ((e.clientY - rect.top) / rect.height) * 100;
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
                     setZoomImage({
                       src: reviewModal.currentImage!.url!,
                       x,
@@ -930,11 +914,11 @@ export default function ProjectPage() {
                   <img
                     src={reviewModal.currentImage.url}
                     style={{
-                      maxWidth: "95%",
-                      maxHeight: "calc(100vh - 400px)",
+                      maxWidth: "100%",
+                      maxHeight: "calc(100vh - 350px)",
                       objectFit: "contain",
                       borderRadius: 12,
-                      cursor: "zoom-in",
+                      cursor: "crosshair",
                       display: "block",
                     }}
                     alt="Generada"
@@ -942,28 +926,29 @@ export default function ProjectPage() {
                   {zoomImage && zoomImage.src === reviewModal.currentImage.url && (
                     <div
                       style={{
-                        position: "absolute",
-                        top: 10,
-                        right: 10,
-                        width: 150,
-                        height: 150,
+                        position: "fixed",
+                        left: zoomImage.x + 20,
+                        top: zoomImage.y + 20,
+                        width: 200,
+                        height: 200,
                         border: "3px solid #fff",
                         borderRadius: 8,
                         overflow: "hidden",
                         pointerEvents: "none",
                         background: "#000",
-                        boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.8)",
+                        zIndex: 10000,
                       }}
                     >
-                      <div
+                      <img
+                        src={zoomImage.src}
                         style={{
-                          width: "300%",
-                          height: "300%",
-                          backgroundImage: `url(${zoomImage.src})`,
-                          backgroundSize: "cover",
-                          backgroundPosition: `${zoomImage.x}% ${zoomImage.y}%`,
-                          transform: `translate(-${zoomImage.x}%, -${zoomImage.y}%)`,
+                          width: "400%",
+                          height: "400%",
+                          objectFit: "cover",
+                          transform: `translate(-${(zoomImage.x / (e.currentTarget?.offsetWidth || 1)) * 400}%, -${(zoomImage.y / (e.currentTarget?.offsetHeight || 1)) * 400}%)`,
                         }}
+                        alt="Zoom"
                       />
                     </div>
                   )}
@@ -972,13 +957,13 @@ export default function ProjectPage() {
             </div>
           </div>
 
-          {/* 🔧 BOTONES CON ALTURA FIJA */}
+          {/* BOTONES */}
           <div
             style={{
               display: "flex",
               justifyContent: "center",
               gap: 16,
-              padding: "12px 0 8px",
+              padding: "16px 0",
               flexShrink: 0,
             }}
           >
@@ -1031,57 +1016,18 @@ export default function ProjectPage() {
             </button>
           </div>
 
-          {/* 🔧 PROMPT EDITABLE MOVIDO ABAJO */}
+          {/* MINIATURAS (IZQUIERDA) + PROMPT (DERECHA) */}
           <div
             style={{
-              padding: "8px 40px",
-              maxWidth: "900px",
-              margin: "0 auto",
-              flexShrink: 0,
-            }}
-          >
-            <p
-              style={{
-                color: "#fff",
-                fontSize: 11,
-                opacity: 0.7,
-                marginBottom: 4,
-              }}
-            >
-              Prompt {editablePrompt ? "(editable)" : "(escribe un prompt para regenerar)"}:
-            </p>
-            <textarea
-              value={editablePrompt}
-              onChange={(e) => setEditablePrompt(e.target.value)}
-              placeholder="Escribe el prompt aquí para regenerar la imagen..."
-              style={{
-                width: "100%",
-                color: "#fff",
-                fontSize: 13,
-                background: "rgba(255,255,255,0.1)",
-                padding: "10px 14px",
-                borderRadius: 6,
-                height: "90px",
-                overflowY: "auto",
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-word",
-                margin: 0,
-                border: "1px solid rgba(255,255,255,0.3)",
-                fontFamily: "inherit",
-                resize: "vertical",
-                lineHeight: "1.4",
-              }}
-            />
-          </div>
-
-          {/* Carrusel de miniaturas */}
-          <div
-            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 400px",
+              gap: 20,
               padding: "16px 20px",
               borderTop: "2px solid rgba(255,255,255,0.2)",
               flexShrink: 0,
             }}
           >
+            {/* MINIATURAS */}
             <div
               style={{
                 display: "flex",
@@ -1101,8 +1047,8 @@ export default function ProjectPage() {
                     })
                   }
                   style={{
-                    minWidth: 70,
-                    height: 70,
+                    minWidth: 80,
+                    height: 80,
                     borderRadius: 8,
                     overflow: "hidden",
                     cursor: "pointer",
@@ -1131,17 +1077,15 @@ export default function ProjectPage() {
                         position: "absolute",
                         top: 3,
                         right: 3,
-                        width: 18,
-                        height: 18,
+                        width: 20,
+                        height: 20,
                         borderRadius: "50%",
-                        background: 
-                          img.validation_status === "approved"
-                            ? "#10b981"
-                            : "#ef4444",
+                        background:
+                          img.validation_status === "approved" ? "#10b981" : "#ef4444",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        fontSize: 11,
+                        fontSize: 12,
                         color: "#fff",
                       }}
                     >
@@ -1150,6 +1094,38 @@ export default function ProjectPage() {
                   )}
                 </div>
               ))}
+            </div>
+
+            {/* PROMPT EDITABLE (DERECHA) */}
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <p
+                style={{
+                  color: "#fff",
+                  fontSize: 11,
+                  opacity: 0.7,
+                  marginBottom: 4,
+                }}
+              >
+                Prompt {editablePrompt ? "(editable)" : "(escribe para regenerar)"}:
+              </p>
+              <textarea
+                value={editablePrompt}
+                onChange={(e) => setEditablePrompt(e.target.value)}
+                placeholder="Escribe el prompt aquí para regenerar..."
+                style={{
+                  flex: 1,
+                  color: "#fff",
+                  fontSize: 13,
+                  background: "rgba(255,255,255,0.1)",
+                  padding: "10px 14px",
+                  borderRadius: 6,
+                  border: "1px solid rgba(255,255,255,0.3)",
+                  fontFamily: "inherit",
+                  resize: "vertical",
+                  lineHeight: "1.4",
+                  minHeight: "70px",
+                }}
+              />
             </div>
           </div>
         </div>
