@@ -813,13 +813,21 @@ export default function ProjectPage() {
                   style={{ position: "relative", display: "inline-block" }}
                   onMouseMove={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect();
-                    const x = e.clientX - rect.left;
-                    const y = e.clientY - rect.top;
-                    setZoomImage({
-                      src: reviewModal.currentImage!.original_image_url!,
-                      x,
-                      y,
-                    });
+                    const img = e.currentTarget.querySelector('img');
+                    if (img) {
+                      const imgRect = img.getBoundingClientRect();
+                      const x = e.clientX - imgRect.left;
+                      const y = e.clientY - imgRect.top;
+                      const xPercent = (x / imgRect.width) * 100;
+                      const yPercent = (y / imgRect.height) * 100;
+                      setZoomImage({
+                        src: reviewModal.currentImage!.original_image_url!,
+                        x: e.clientX,
+                        y: e.clientY,
+                        xPercent,
+                        yPercent,
+                      });
+                    }
                   }}
                   onMouseLeave={() => setZoomImage(null)}
                 >
@@ -850,19 +858,11 @@ export default function ProjectPage() {
                         background: "#000",
                         boxShadow: "0 4px 12px rgba(0,0,0,0.8)",
                         zIndex: 10000,
+                        backgroundImage: `url(${zoomImage.src})`,
+                        backgroundSize: "400%",
+                        backgroundPosition: `${zoomImage.xPercent}% ${zoomImage.yPercent}%`,
                       }}
-                    >
-                      <img
-                        src={zoomImage.src}
-                        style={{
-                          width: "400%",
-                          height: "400%",
-                          objectFit: "cover",
-                          transform: `translate(-${(zoomImage.x / (e.currentTarget?.offsetWidth || 1)) * 400}%, -${(zoomImage.y / (e.currentTarget?.offsetHeight || 1)) * 400}%)`,
-                        }}
-                        alt="Zoom"
-                      />
-                    </div>
+                    />
                   )}
                 </div>
               ) : (
@@ -901,13 +901,21 @@ export default function ProjectPage() {
                   style={{ position: "relative", display: "inline-block" }}
                   onMouseMove={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect();
-                    const x = e.clientX - rect.left;
-                    const y = e.clientY - rect.top;
-                    setZoomImage({
-                      src: reviewModal.currentImage!.url!,
-                      x,
-                      y,
-                    });
+                    const img = e.currentTarget.querySelector('img');
+                    if (img) {
+                      const imgRect = img.getBoundingClientRect();
+                      const x = e.clientX - imgRect.left;
+                      const y = e.clientY - imgRect.top;
+                      const xPercent = (x / imgRect.width) * 100;
+                      const yPercent = (y / imgRect.height) * 100;
+                      setZoomImage({
+                        src: reviewModal.currentImage!.url!,
+                        x: e.clientX,
+                        y: e.clientY,
+                        xPercent,
+                        yPercent,
+                      });
+                    }
                   }}
                   onMouseLeave={() => setZoomImage(null)}
                 >
@@ -938,19 +946,11 @@ export default function ProjectPage() {
                         background: "#000",
                         boxShadow: "0 4px 12px rgba(0,0,0,0.8)",
                         zIndex: 10000,
+                        backgroundImage: `url(${zoomImage.src})`,
+                        backgroundSize: "400%",
+                        backgroundPosition: `${zoomImage.xPercent}% ${zoomImage.yPercent}%`,
                       }}
-                    >
-                      <img
-                        src={zoomImage.src}
-                        style={{
-                          width: "400%",
-                          height: "400%",
-                          objectFit: "cover",
-                          transform: `translate(-${(zoomImage.x / (e.currentTarget?.offsetWidth || 1)) * 400}%, -${(zoomImage.y / (e.currentTarget?.offsetHeight || 1)) * 400}%)`,
-                        }}
-                        alt="Zoom"
-                      />
-                    </div>
+                    />
                   )}
                 </div>
               )}
