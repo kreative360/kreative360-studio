@@ -866,7 +866,7 @@ export default function ProjectPage() {
           {reviewModal.currentImage?.prompt_used && (
             <div
               style={{
-                padding: "0 40px 20px",
+                padding: "0 40px 10px",
                 maxWidth: "800px",
                 margin: "0 auto",
               }}
@@ -884,11 +884,11 @@ export default function ProjectPage() {
               <p
                 style={{
                   color: "#fff",
-                  fontSize: 14,
+                  fontSize: 13,
                   background: "rgba(255,255,255,0.1)",
-                  padding: "12px 16px",
+                  padding: "10px 14px",
                   borderRadius: 8,
-                  maxHeight: "80px",
+                  maxHeight: "60px",
                   overflowY: "auto",
                   whiteSpace: "pre-wrap",
                   wordBreak: "break-word",
