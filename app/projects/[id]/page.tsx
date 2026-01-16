@@ -1,7 +1,68 @@
+/* ======================================================
+     🆕 FUNCIÓN PARA GUARDAR EDICIÓN
+  ====================================================== */
+  const handleEditSave = async (editedImageBase64: string) => {
+    if (!editorModal) return;
+
+    try {
+      // Actualizar la imagen en el servidor (reemplazar como en regenerate)
+      const updateRes = await fetch("/api/projects/update-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageId: editorModal.imageId,
+          base64: editedImageBase64,
+          mime: "image/jpeg",
+          promptUsed: "Editado con IA",
+        }),
+      });
+
+      const updateData = await updateRes.json();
+
+      if (!updateRes.ok || !updateData.success) {
+        throw new Error("Error actualizando imagen editada");
+      }
+
+      // Actualizar en el modal de revisión si está abierto
+      const newUrl = `${updateData.url}?t=${Date.now()}`;
+      
+      if (reviewModal && reviewModal.currentImage?.id === editorModal.imageId) {
+        setReviewModal({
+          ...reviewModal,
+          currentImage: {
+            ...reviewModal.currentImage,
+            url: newUrl,
+          },
+          imagesInReference: reviewModal.imagesInReference.map(img =>
+            img.id === editorModal.imageId
+              ? { ...img, url: newUrl }
+              : img
+          ),
+        });
+      }
+
+      // Actualizar estado global
+      setImages(prev =>
+        prev.map(img =>
+          img.id === editorModal.imageId
+            ? { ...img, url: newUrl }
+            : img
+        )
+      );
+
+      // Cerrar editor
+      setEditorModal(null);
+
+    } catch (error: any) {
+      console.error("Error guardando edición:", error);
+      alert("❌ Error: " + error.message);
+    }
+  };
 "use client";
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import ImageEditor from "@/app/components/ImageEditor";
 
 /* ======================================================
    TIPOS
@@ -56,6 +117,13 @@ export default function ProjectPage() {
   const [editablePrompt, setEditablePrompt] = useState<string>("");
 
   // 🆕 Estado para zoom/lupa
+
+  // 🆕 Estado para editor de imágenes
+  const [editorModal, setEditorModal] = useState<{
+    open: boolean;
+    imageUrl: string;
+    imageId: string;
+  } | null>(null);
   const [zoomImage, setZoomImage] = useState<{ src: string; x: number; y: number; xPercent: number; yPercent: number } | null>(null);
 
   /* ======================================================
@@ -306,6 +374,67 @@ export default function ProjectPage() {
       alert("❌ Error: " + error.message);
     } finally {
       setIsRegenerating(false);
+    }
+  };
+
+  /* ======================================================
+     🆕 FUNCIÓN PARA GUARDAR EDICIÓN
+  ====================================================== */
+  const handleEditSave = async (editedImageBase64: string) => {
+    if (!editorModal) return;
+
+    try {
+      // Actualizar la imagen en el servidor (reemplazar como en regenerate)
+      const updateRes = await fetch("/api/projects/update-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageId: editorModal.imageId,
+          base64: editedImageBase64,
+          mime: "image/jpeg",
+          promptUsed: "Editado con IA",
+        }),
+      });
+
+      const updateData = await updateRes.json();
+
+      if (!updateRes.ok || !updateData.success) {
+        throw new Error("Error actualizando imagen editada");
+      }
+
+      // Actualizar en el modal de revisión si está abierto
+      const newUrl = `${updateData.url}?t=${Date.now()}`;
+      
+      if (reviewModal && reviewModal.currentImage?.id === editorModal.imageId) {
+        setReviewModal({
+          ...reviewModal,
+          currentImage: {
+            ...reviewModal.currentImage,
+            url: newUrl,
+          },
+          imagesInReference: reviewModal.imagesInReference.map(img =>
+            img.id === editorModal.imageId
+              ? { ...img, url: newUrl }
+              : img
+          ),
+        });
+      }
+
+      // Actualizar estado global
+      setImages(prev =>
+        prev.map(img =>
+          img.id === editorModal.imageId
+            ? { ...img, url: newUrl }
+            : img
+        )
+      );
+
+      // Cerrar editor
+      setEditorModal(null);
+
+    } catch (error: any) {
+      console.error("Error guardando edición:", error);
+      alert("❌ Error: " + error.message);
     }
   };
 
@@ -1065,6 +1194,29 @@ export default function ProjectPage() {
             >
               {isRegenerating ? "⏳ Regenerando..." : "🔄 Regenerar"}
             </button>
+            <button
+              onClick={() => {
+                if (reviewModal?.currentImage?.url) {
+                  setEditorModal({
+                    open: true,
+                    imageUrl: reviewModal.currentImage.url,
+                    imageId: reviewModal.currentImage.id,
+                  });
+                }
+              }}
+              style={{
+                background: "#8b5cf6",
+                color: "#fff",
+                border: "none",
+                borderRadius: 10,
+                padding: "10px 28px",
+                fontSize: 15,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              ✏️ Editar
+            </button>
           </div>
 
           {/* MINIATURAS (IZQUIERDA) + PROMPT (DERECHA) */}
@@ -1180,6 +1332,15 @@ export default function ProjectPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 🆕 MODAL DEL EDITOR DE IMÁGENES */}
+      {editorModal?.open && (
+        <ImageEditor
+          imageUrl={editorModal.imageUrl}
+          onSave={handleEditSave}
+          onCancel={() => setEditorModal(null)}
+        />
       )}
     </div>
   );
