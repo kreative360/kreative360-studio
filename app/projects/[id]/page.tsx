@@ -56,7 +56,7 @@ export default function ProjectPage() {
   const [editablePrompt, setEditablePrompt] = useState<string>("");
 
   // 🆕 Estado para zoom/lupa
-  const [zoomImage, setZoomImage] = useState<{ src: string; x: number; y: number } | null>(null);
+  const [zoomImage, setZoomImage] = useState<{ src: string; x: number; y: number; xPercent: number; yPercent: number } | null>(null);
 
   /* ======================================================
      CARGA DE IMÁGENES (REAL)
