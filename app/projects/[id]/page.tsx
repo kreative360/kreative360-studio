@@ -294,14 +294,35 @@ export default function ProjectPage() {
   const handleEditSave = async (editedImageBase64: string) => {
     if (!editorModal) return;
     try {
-      const updateRes = await fetch("/api/projects/update-image", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ imageId: editorModal.imageId, base64: editedImageBase64, mime: "image/jpeg", promptUsed: "Editado con IA" }) });
+      const updateRes = await fetch("/api/projects/update-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageId: editorModal.imageId,
+          base64: editedImageBase64,
+          mime: "image/jpeg",
+          promptUsed: "Editado con IA",
+        }),
+      });
       const updateData = await updateRes.json();
-      if (!updateRes.ok || !updateData.success) throw new Error("Error actualizando imagen editada");
-      const newUrl = \`\${updateData.url}?t=\${Date.now()}\`;
-      if (reviewModal && reviewModal.currentImage?.id === editorModal.imageId) {
-        setReviewModal({ ...reviewModal, currentImage: { ...reviewModal.currentImage, url: newUrl }, imagesInReference: reviewModal.imagesInReference.map(img => img.id === editorModal.imageId ? { ...img, url: newUrl } : img) });
+      if (!updateRes.ok || !updateData.success) {
+        throw new Error("Error actualizando imagen editada");
       }
-      setImages(prev => prev.map(img => img.id === editorModal.imageId ? { ...img, url: newUrl } : img));
+      const newUrl = `${updateData.url}?t=${Date.now()}`;
+      if (reviewModal && reviewModal.currentImage?.id === editorModal.imageId) {
+        setReviewModal({
+          ...reviewModal,
+          currentImage: { ...reviewModal.currentImage, url: newUrl },
+          imagesInReference: reviewModal.imagesInReference.map(img =>
+            img.id === editorModal.imageId ? { ...img, url: newUrl } : img
+          ),
+        });
+      }
+      setImages(prev =>
+        prev.map(img =>
+          img.id === editorModal.imageId ? { ...img, url: newUrl } : img
+        )
+      );
       setEditorModal(null);
     } catch (error: any) {
       console.error("Error guardando edición:", error);
@@ -1065,7 +1086,36 @@ export default function ProjectPage() {
             >
               {isRegenerating ? "⏳ Regenerando..." : "🔄 Regenerar"}
             </button>
-            <button onClick={async () => { if (reviewModal?.currentImage?.url) { try { const response = await fetch(\`/api/image-to-base64?url=\${encodeURIComponent(reviewModal.currentImage.url)}\`); const data = await response.json(); if (!data.success) throw new Error(data.error); setEditorModal({ open: true, imageUrl: data.dataUrl, imageId: reviewModal.currentImage.id }); } catch (error) { alert("Error: " + (error as Error).message); } } }} style={{ background: "#8b5cf6", color: "#fff", border: "none", borderRadius: 10, padding: "10px 28px", fontSize: 15, fontWeight: 600, cursor: "pointer" }}>✏️ Editar</button>
+            <button
+              onClick={async () => {
+                if (reviewModal?.currentImage?.url) {
+                  try {
+                    const response = await fetch(`/api/image-to-base64?url=${encodeURIComponent(reviewModal.currentImage.url)}`);
+                    const data = await response.json();
+                    if (!data.success) throw new Error(data.error);
+                    setEditorModal({
+                      open: true,
+                      imageUrl: data.dataUrl,
+                      imageId: reviewModal.currentImage.id,
+                    });
+                  } catch (error) {
+                    alert("Error: " + (error as Error).message);
+                  }
+                }
+              }}
+              style={{
+                background: "#8b5cf6",
+                color: "#fff",
+                border: "none",
+                borderRadius: 10,
+                padding: "10px 28px",
+                fontSize: 15,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              ✏️ Editar
+            </button>
           </div>
 
           {/* MINIATURAS (IZQUIERDA) + PROMPT (DERECHA) */}
