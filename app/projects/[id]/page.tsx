@@ -864,7 +864,7 @@ export default function ProjectPage() {
               gap: 20,
               padding: "0 20px",
               alignItems: "center",
-              height: "calc(100vh - 280px)",
+              height: "calc(100vh - 340px)",
               flexShrink: 0,
             }}
           >
@@ -908,7 +908,7 @@ export default function ProjectPage() {
                     src={reviewModal.currentImage.original_image_url}
                     style={{
                       maxWidth: "100%",
-                      maxHeight: "calc(100vh - 290px)",
+                      maxHeight: "calc(100vh - 350px)",
                       objectFit: "contain",
                       borderRadius: 12,
                       cursor: "crosshair",
@@ -996,7 +996,7 @@ export default function ProjectPage() {
                     src={reviewModal.currentImage.url}
                     style={{
                       maxWidth: "100%",
-                      maxHeight: "calc(100vh - 290px)",
+                      maxHeight: "calc(100vh - 350px)",
                       objectFit: "contain",
                       borderRadius: 12,
                       cursor: "crosshair",
@@ -1088,13 +1088,31 @@ export default function ProjectPage() {
               {isRegenerating ? "⏳ Regenerando..." : "🔄 Regenerar"}
             </button>
             <button
-              onClick={() => {
+            <button
+              onClick={async () => {
                 if (reviewModal?.currentImage?.url) {
-                  setEditorModal({
-                    open: true,
-                    imageUrl: reviewModal.currentImage.url,
-                    imageId: reviewModal.currentImage.id,
-                  });
+                  try {
+                    console.log("🎨 Cargando imagen para editar...");
+                    
+                    // Llamar a API que convierte a base64
+                    const response = await fetch(`/api/image-to-base64?url=${encodeURIComponent(reviewModal.currentImage.url)}`);
+                    const data = await response.json();
+                    
+                    if (!data.success) {
+                      throw new Error(data.error || "Error cargando imagen");
+                    }
+                    
+                    console.log("✅ Imagen convertida a base64");
+                    
+                    setEditorModal({
+                      open: true,
+                      imageUrl: data.dataUrl,
+                      imageId: reviewModal.currentImage.id,
+                    });
+                  } catch (error) {
+                    console.error("❌ Error:", error);
+                    alert("Error al cargar la imagen: " + (error as Error).message);
+                  }
                 }
               }}
               style={{
@@ -1110,9 +1128,6 @@ export default function ProjectPage() {
             >
               ✏️ Editar
             </button>
-          </div>
-
-          {/* MINIATURAS (IZQUIERDA) + PROMPT (DERECHA) */}
           <div
             style={{
               display: "grid",
