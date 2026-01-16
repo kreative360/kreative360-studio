@@ -311,14 +311,40 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
             }}
           >
             {isLoading && (
-              <div style={{ color: "#fff", fontSize: 16 }}>
-                ⏳ Cargando imagen...
+              <div style={{ color: "#fff", fontSize: 16, textAlign: "center" }}>
+                <div style={{ marginBottom: 16 }}>⏳ Cargando imagen...</div>
+                <div style={{ fontSize: 12, opacity: 0.7 }}>
+                  Esto puede tardar unos segundos
+                </div>
               </div>
             )}
             
             {loadError && (
               <div style={{ color: "#ef4444", fontSize: 14, textAlign: "center", padding: 20 }}>
-                ❌ {loadError}
+                <div style={{ marginBottom: 16 }}>❌ {loadError}</div>
+                <button
+                  onClick={() => {
+                    setIsLoading(true);
+                    setLoadError(null);
+                    const img = new Image();
+                    img.onload = () => {
+                      console.log("✅ Imagen cargada (retry)");
+                      window.location.reload();
+                    };
+                    img.onerror = () => setLoadError("Error al cargar imagen");
+                    img.src = imageUrl.startsWith("data:") ? imageUrl : `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+                  }}
+                  style={{
+                    padding: "8px 16px",
+                    background: "#3b82f6",
+                    border: "none",
+                    borderRadius: 8,
+                    color: "#fff",
+                    cursor: "pointer",
+                  }}
+                >
+                  🔄 Reintentar
+                </button>
               </div>
             )}
             
