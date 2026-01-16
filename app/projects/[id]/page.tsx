@@ -301,8 +301,6 @@ export default function ProjectPage() {
         )
       );
 
-      alert("✅ Imagen regenerada exitosamente");
-
     } catch (error: any) {
       console.error("Error regenerando:", error);
       alert("❌ Error: " + error.message);
