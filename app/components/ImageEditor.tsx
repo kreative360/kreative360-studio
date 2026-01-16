@@ -21,7 +21,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
   const maskCanvasRef = useRef<HTMLCanvasElement>(null);
   const [originalImage, setOriginalImage] = useState<HTMLImageElement | null>(null);
 
-  // Cargar imagen original (con mejor manejo de errores y CORS)
+  // Cargar imagen original (usando proxy para evitar CORS)
   useEffect(() => {
     setIsLoading(true);
     setLoadError(null);
@@ -71,21 +71,23 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
     
     img.onerror = (e) => {
       console.error("❌ Error cargando imagen:", e);
-      setLoadError("Error al cargar la imagen. Verifica que la URL sea accesible.");
+      setLoadError("Error al cargar la imagen. Intenta de nuevo.");
       setIsLoading(false);
     };
     
-    // Intentar cargar con CORS
-    img.crossOrigin = "anonymous";
-    img.src = imageUrl;
+    // Usar proxy para evitar problemas de CORS
+    const proxyUrl = `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+    console.log("📡 Cargando imagen via proxy:", proxyUrl);
     
-    // Timeout de seguridad
+    img.src = proxyUrl;
+    
+    // Timeout de seguridad (aumentado a 20 segundos)
     const timeout = setTimeout(() => {
       if (isLoading) {
-        setLoadError("Timeout: La imagen tardó demasiado en cargar");
+        setLoadError("La imagen tardó demasiado en cargar. Verifica tu conexión.");
         setIsLoading(false);
       }
-    }, 10000);
+    }, 20000);
     
     return () => clearTimeout(timeout);
   }, [imageUrl]);
