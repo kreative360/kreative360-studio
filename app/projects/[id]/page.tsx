@@ -234,7 +234,15 @@ export default function ProjectPage() {
       }
 
       // 🔧 PASO 3: Actualizar la imagen existente (REEMPLAZAR)
+      // 🔧 PASO 3: Actualizar la imagen existente (REEMPLAZAR)
       const newImage = data.images[0];
+      
+      console.log("🔄 Actualizando imagen:", {
+        imageId: currentImg.id,
+        hasBase64: !!newImage.base64,
+        mime: newImage.mime,
+      });
+      
       const updateRes = await fetch("/api/projects/update-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -246,10 +254,25 @@ export default function ProjectPage() {
         }),
       });
 
-      const updateData = await updateRes.json();
+      console.log("📡 Respuesta update-image:", {
+        ok: updateRes.ok,
+        status: updateRes.status,
+        statusText: updateRes.statusText,
+      });
+
+      let updateData;
+      const responseText = await updateRes.text();
+      
+      try {
+        updateData = JSON.parse(responseText);
+      } catch (e) {
+        console.error("❌ Error parseando JSON:", responseText);
+        throw new Error("Respuesta inválida del servidor");
+      }
 
       if (!updateRes.ok || !updateData.success) {
-        throw new Error("Error actualizando imagen");
+        const errorMsg = updateData.error || updateRes.statusText || "Error desconocido";
+        throw new Error("Error actualizando imagen: " + errorMsg);
       }
 
       // 🔧 PASO 4: Actualizar imagen en el modal SIN CERRAR
@@ -821,7 +844,7 @@ export default function ProjectPage() {
               gap: 20,
               padding: "0 20px",
               alignItems: "center",
-              height: "calc(100vh - 260px)",
+              height: "calc(100vh - 240px)",
               flexShrink: 0,
             }}
           >
@@ -865,7 +888,7 @@ export default function ProjectPage() {
                     src={reviewModal.currentImage.original_image_url}
                     style={{
                       maxWidth: "100%",
-                      maxHeight: "calc(100vh - 310px)",
+                      maxHeight: "calc(100vh - 290px)",
                       objectFit: "contain",
                       borderRadius: 12,
                       cursor: "crosshair",
@@ -953,7 +976,7 @@ export default function ProjectPage() {
                     src={reviewModal.currentImage.url}
                     style={{
                       maxWidth: "100%",
-                      maxHeight: "calc(100vh - 310px)",
+                      maxHeight: "calc(100vh - 290px)",
                       objectFit: "contain",
                       borderRadius: 12,
                       cursor: "crosshair",
@@ -1050,7 +1073,7 @@ export default function ProjectPage() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 500px",
+              gridTemplateColumns: "1fr 550px",
               gap: 20,
               padding: "16px 20px",
               borderTop: "2px solid rgba(255,255,255,0.2)",
