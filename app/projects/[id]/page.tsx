@@ -1,63 +1,3 @@
-/* ======================================================
-     🆕 FUNCIÓN PARA GUARDAR EDICIÓN
-  ====================================================== */
-  const handleEditSave = async (editedImageBase64: string) => {
-    if (!editorModal) return;
-
-    try {
-      // Actualizar la imagen en el servidor (reemplazar como en regenerate)
-      const updateRes = await fetch("/api/projects/update-image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          imageId: editorModal.imageId,
-          base64: editedImageBase64,
-          mime: "image/jpeg",
-          promptUsed: "Editado con IA",
-        }),
-      });
-
-      const updateData = await updateRes.json();
-
-      if (!updateRes.ok || !updateData.success) {
-        throw new Error("Error actualizando imagen editada");
-      }
-
-      // Actualizar en el modal de revisión si está abierto
-      const newUrl = `${updateData.url}?t=${Date.now()}`;
-      
-      if (reviewModal && reviewModal.currentImage?.id === editorModal.imageId) {
-        setReviewModal({
-          ...reviewModal,
-          currentImage: {
-            ...reviewModal.currentImage,
-            url: newUrl,
-          },
-          imagesInReference: reviewModal.imagesInReference.map(img =>
-            img.id === editorModal.imageId
-              ? { ...img, url: newUrl }
-              : img
-          ),
-        });
-      }
-
-      // Actualizar estado global
-      setImages(prev =>
-        prev.map(img =>
-          img.id === editorModal.imageId
-            ? { ...img, url: newUrl }
-            : img
-        )
-      );
-
-      // Cerrar editor
-      setEditorModal(null);
-
-    } catch (error: any) {
-      console.error("Error guardando edición:", error);
-      alert("❌ Error: " + error.message);
-    }
-  };
 "use client";
 
 import { useEffect, useState } from "react";
@@ -117,6 +57,7 @@ export default function ProjectPage() {
   const [editablePrompt, setEditablePrompt] = useState<string>("");
 
   // 🆕 Estado para zoom/lupa
+  const [zoomImage, setZoomImage] = useState<{ src: string; x: number; y: number; xPercent: number; yPercent: number } | null>(null);
 
   // 🆕 Estado para editor de imágenes
   const [editorModal, setEditorModal] = useState<{
@@ -124,7 +65,6 @@ export default function ProjectPage() {
     imageUrl: string;
     imageId: string;
   } | null>(null);
-  const [zoomImage, setZoomImage] = useState<{ src: string; x: number; y: number; xPercent: number; yPercent: number } | null>(null);
 
   /* ======================================================
      CARGA DE IMÁGENES (REAL)
@@ -302,15 +242,7 @@ export default function ProjectPage() {
       }
 
       // 🔧 PASO 3: Actualizar la imagen existente (REEMPLAZAR)
-      // 🔧 PASO 3: Actualizar la imagen existente (REEMPLAZAR)
       const newImage = data.images[0];
-      
-      console.log("🔄 Actualizando imagen:", {
-        imageId: currentImg.id,
-        hasBase64: !!newImage.base64,
-        mime: newImage.mime,
-      });
-      
       const updateRes = await fetch("/api/projects/update-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -322,25 +254,10 @@ export default function ProjectPage() {
         }),
       });
 
-      console.log("📡 Respuesta update-image:", {
-        ok: updateRes.ok,
-        status: updateRes.status,
-        statusText: updateRes.statusText,
-      });
-
-      let updateData;
-      const responseText = await updateRes.text();
-      
-      try {
-        updateData = JSON.parse(responseText);
-      } catch (e) {
-        console.error("❌ Error parseando JSON:", responseText);
-        throw new Error("Respuesta inválida del servidor");
-      }
+      const updateData = await updateRes.json();
 
       if (!updateRes.ok || !updateData.success) {
-        const errorMsg = updateData.error || updateRes.statusText || "Error desconocido";
-        throw new Error("Error actualizando imagen: " + errorMsg);
+        throw new Error("Error actualizando imagen");
       }
 
       // 🔧 PASO 4: Actualizar imagen en el modal SIN CERRAR
@@ -369,6 +286,8 @@ export default function ProjectPage() {
         )
       );
 
+      alert("✅ Imagen regenerada exitosamente");
+
     } catch (error: any) {
       console.error("Error regenerando:", error);
       alert("❌ Error: " + error.message);
@@ -384,7 +303,7 @@ export default function ProjectPage() {
     if (!editorModal) return;
 
     try {
-      // Actualizar la imagen en el servidor (reemplazar como en regenerate)
+      // Actualizar la imagen en el servidor
       const updateRes = await fetch("/api/projects/update-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -402,9 +321,9 @@ export default function ProjectPage() {
         throw new Error("Error actualizando imagen editada");
       }
 
-      // Actualizar en el modal de revisión si está abierto
       const newUrl = `${updateData.url}?t=${Date.now()}`;
       
+      // Actualizar en modal de revisión
       if (reviewModal && reviewModal.currentImage?.id === editorModal.imageId) {
         setReviewModal({
           ...reviewModal,
@@ -413,9 +332,7 @@ export default function ProjectPage() {
             url: newUrl,
           },
           imagesInReference: reviewModal.imagesInReference.map(img =>
-            img.id === editorModal.imageId
-              ? { ...img, url: newUrl }
-              : img
+            img.id === editorModal.imageId ? { ...img, url: newUrl } : img
           ),
         });
       }
@@ -423,13 +340,10 @@ export default function ProjectPage() {
       // Actualizar estado global
       setImages(prev =>
         prev.map(img =>
-          img.id === editorModal.imageId
-            ? { ...img, url: newUrl }
-            : img
+          img.id === editorModal.imageId ? { ...img, url: newUrl } : img
         )
       );
 
-      // Cerrar editor
       setEditorModal(null);
 
     } catch (error: any) {
@@ -931,7 +845,7 @@ export default function ProjectPage() {
           {/* Cabecera */}
           <div
             style={{
-              padding: "16px 20px 16px",
+              padding: "16px 20px",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
@@ -971,7 +885,7 @@ export default function ProjectPage() {
               gap: 20,
               padding: "0 20px",
               alignItems: "center",
-              height: "calc(100vh - 260px)",
+              height: "calc(100vh - 240px)",
               flexShrink: 0,
             }}
           >
@@ -1015,7 +929,7 @@ export default function ProjectPage() {
                     src={reviewModal.currentImage.original_image_url}
                     style={{
                       maxWidth: "100%",
-                      maxHeight: "calc(100vh - 310px)",
+                      maxHeight: "calc(100vh - 290px)",
                       objectFit: "contain",
                       borderRadius: 12,
                       cursor: "crosshair",
@@ -1103,7 +1017,7 @@ export default function ProjectPage() {
                     src={reviewModal.currentImage.url}
                     style={{
                       maxWidth: "100%",
-                      maxHeight: "calc(100vh - 310px)",
+                      maxHeight: "calc(100vh - 290px)",
                       objectFit: "contain",
                       borderRadius: 12,
                       cursor: "crosshair",
@@ -1225,7 +1139,7 @@ export default function ProjectPage() {
               display: "grid",
               gridTemplateColumns: "1fr 550px",
               gap: 20,
-              padding: "16px 20px 16px",
+              padding: "16px 20px",
               borderTop: "2px solid rgba(255,255,255,0.2)",
               flexShrink: 0,
             }}
