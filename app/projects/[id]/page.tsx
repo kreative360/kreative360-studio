@@ -1146,6 +1146,10 @@ export default function ProjectPage() {
             >
               ✏️ Editar
             </button>
+          </div>
+
+          {/* MINIATURAS (IZQUIERDA) + PROMPT (DERECHA) */}
+          <div
             style={{
               display: "grid",
               gridTemplateColumns: "1fr 550px",
