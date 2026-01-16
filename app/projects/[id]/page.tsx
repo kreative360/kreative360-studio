@@ -804,7 +804,7 @@ export default function ProjectPage() {
           {/* Cabecera */}
           <div
             style={{
-              padding: "20px 20px 12px",
+              padding: "16px 20px 16px",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
@@ -844,7 +844,7 @@ export default function ProjectPage() {
               gap: 20,
               padding: "0 20px",
               alignItems: "center",
-              height: "calc(100vh - 220px)",
+              height: "calc(100vh - 260px)",
               flexShrink: 0,
             }}
           >
@@ -888,7 +888,7 @@ export default function ProjectPage() {
                     src={reviewModal.currentImage.original_image_url}
                     style={{
                       maxWidth: "100%",
-                      maxHeight: "calc(100vh - 270px)",
+                      maxHeight: "calc(100vh - 310px)",
                       objectFit: "contain",
                       borderRadius: 12,
                       cursor: "crosshair",
@@ -976,7 +976,7 @@ export default function ProjectPage() {
                     src={reviewModal.currentImage.url}
                     style={{
                       maxWidth: "100%",
-                      maxHeight: "calc(100vh - 270px)",
+                      maxHeight: "calc(100vh - 310px)",
                       objectFit: "contain",
                       borderRadius: 12,
                       cursor: "crosshair",
@@ -1075,7 +1075,7 @@ export default function ProjectPage() {
               display: "grid",
               gridTemplateColumns: "1fr 550px",
               gap: 20,
-              padding: "20px 20px 12px",
+              padding: "16px 20px 16px",
               borderTop: "2px solid rgba(255,255,255,0.2)",
               flexShrink: 0,
             }}
