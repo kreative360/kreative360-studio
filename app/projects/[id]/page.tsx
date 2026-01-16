@@ -59,12 +59,7 @@ export default function ProjectPage() {
   // 🆕 Estado para zoom/lupa
   const [zoomImage, setZoomImage] = useState<{ src: string; x: number; y: number; xPercent: number; yPercent: number } | null>(null);
 
-  // 🆕 Estado para editor de imágenes
-  const [editorModal, setEditorModal] = useState<{
-    open: boolean;
-    imageUrl: string;
-    imageId: string;
-  } | null>(null);
+  const [editorModal, setEditorModal] = useState<{ open: boolean; imageUrl: string; imageId: string; } | null>(null);
 
   /* ======================================================
      CARGA DE IMÁGENES (REAL)
@@ -299,29 +294,12 @@ export default function ProjectPage() {
   const handleEditSave = async (editedImageBase64: string) => {
     if (!editorModal) return;
     try {
-      const updateRes = await fetch("/api/projects/update-image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          imageId: editorModal.imageId,
-          base64: editedImageBase64,
-          mime: "image/jpeg",
-          promptUsed: "Editado con IA",
-        }),
-      });
+      const updateRes = await fetch("/api/projects/update-image", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ imageId: editorModal.imageId, base64: editedImageBase64, mime: "image/jpeg", promptUsed: "Editado con IA" }) });
       const updateData = await updateRes.json();
-      if (!updateRes.ok || !updateData.success) {
-        throw new Error("Error actualizando imagen editada");
-      }
-      const newUrl = `${updateData.url}?t=${Date.now()}`;
+      if (!updateRes.ok || !updateData.success) throw new Error("Error actualizando imagen editada");
+      const newUrl = \`\${updateData.url}?t=\${Date.now()}\`;
       if (reviewModal && reviewModal.currentImage?.id === editorModal.imageId) {
-        setReviewModal({
-          ...reviewModal,
-          currentImage: { ...reviewModal.currentImage, url: newUrl },
-          imagesInReference: reviewModal.imagesInReference.map(img =>
-            img.id === editorModal.imageId ? { ...img, url: newUrl } : img
-          ),
-        });
+        setReviewModal({ ...reviewModal, currentImage: { ...reviewModal.currentImage, url: newUrl }, imagesInReference: reviewModal.imagesInReference.map(img => img.id === editorModal.imageId ? { ...img, url: newUrl } : img) });
       }
       setImages(prev => prev.map(img => img.id === editorModal.imageId ? { ...img, url: newUrl } : img));
       setEditorModal(null);
@@ -1087,47 +1065,10 @@ export default function ProjectPage() {
             >
               {isRegenerating ? "⏳ Regenerando..." : "🔄 Regenerar"}
             </button>
-            <button
-            <button
-              onClick={async () => {
-                if (reviewModal?.currentImage?.url) {
-                  try {
-                    console.log("🎨 Cargando imagen para editar...");
-                    
-                    // Llamar a API que convierte a base64
-                    const response = await fetch(`/api/image-to-base64?url=${encodeURIComponent(reviewModal.currentImage.url)}`);
-                    const data = await response.json();
-                    
-                    if (!data.success) {
-                      throw new Error(data.error || "Error cargando imagen");
-                    }
-                    
-                    console.log("✅ Imagen convertida a base64");
-                    
-                    setEditorModal({
-                      open: true,
-                      imageUrl: data.dataUrl,
-                      imageId: reviewModal.currentImage.id,
-                    });
-                  } catch (error) {
-                    console.error("❌ Error:", error);
-                    alert("Error al cargar la imagen: " + (error as Error).message);
-                  }
-                }
-              }}
-              style={{
-                background: "#8b5cf6",
-                color: "#fff",
-                border: "none",
-                borderRadius: 10,
-                padding: "10px 28px",
-                fontSize: 15,
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              ✏️ Editar
-            </button>
+            <button onClick={async () => { if (reviewModal?.currentImage?.url) { try { const response = await fetch(\`/api/image-to-base64?url=\${encodeURIComponent(reviewModal.currentImage.url)}\`); const data = await response.json(); if (!data.success) throw new Error(data.error); setEditorModal({ open: true, imageUrl: data.dataUrl, imageId: reviewModal.currentImage.id }); } catch (error) { alert("Error: " + (error as Error).message); } } }} style={{ background: "#8b5cf6", color: "#fff", border: "none", borderRadius: 10, padding: "10px 28px", fontSize: 15, fontWeight: 600, cursor: "pointer" }}>✏️ Editar</button>
+          </div>
+
+          {/* MINIATURAS (IZQUIERDA) + PROMPT (DERECHA) */}
           <div
             style={{
               display: "grid",
@@ -1242,13 +1183,7 @@ export default function ProjectPage() {
         </div>
       )}
 
-      {editorModal?.open && (
-        <ImageEditor
-          imageUrl={editorModal.imageUrl}
-          onSave={handleEditSave}
-          onCancel={() => setEditorModal(null)}
-        />
-      )}
+      {editorModal?.open && <ImageEditor imageUrl={editorModal.imageUrl} onSave={handleEditSave} onCancel={() => setEditorModal(null)} />}
     </div>
   );
 }
