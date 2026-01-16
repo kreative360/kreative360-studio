@@ -1111,25 +1111,41 @@ export default function ProjectPage() {
             <button
               onClick={async () => {
                 if (reviewModal?.currentImage?.url) {
+                  console.log("🎨 Iniciando carga de imagen para editar:", reviewModal.currentImage.url);
                   try {
                     // Pre-cargar imagen como base64
+                    console.log("📡 Llamando al proxy...");
                     const response = await fetch(`/api/image-proxy?url=${encodeURIComponent(reviewModal.currentImage.url)}`);
+                    
+                    if (!response.ok) {
+                      throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    console.log("✅ Proxy respondió OK, convirtiendo a blob...");
                     const blob = await response.blob();
+                    console.log("📦 Blob creado, tamaño:", blob.size, "bytes");
+                    
                     const reader = new FileReader();
                     
                     reader.onloadend = () => {
                       const base64 = reader.result as string;
+                      console.log("✅ Base64 generado, longitud:", base64.length);
                       setEditorModal({
                         open: true,
-                        imageUrl: base64, // Usar base64 en lugar de URL
+                        imageUrl: base64,
                         imageId: reviewModal.currentImage!.id,
                       });
                     };
                     
+                    reader.onerror = () => {
+                      console.error("❌ Error en FileReader");
+                      alert("Error convirtiendo imagen a base64");
+                    };
+                    
                     reader.readAsDataURL(blob);
                   } catch (error) {
-                    console.error("Error cargando imagen:", error);
-                    alert("Error al cargar la imagen para editar");
+                    console.error("❌ Error cargando imagen:", error);
+                    alert("Error al cargar la imagen para editar: " + (error as Error).message);
                   }
                 }
               }}
@@ -1154,7 +1170,7 @@ export default function ProjectPage() {
               display: "grid",
               gridTemplateColumns: "1fr 550px",
               gap: 20,
-              padding: "16px 20px",
+              padding: "16px 20px 20px",
               borderTop: "2px solid rgba(255,255,255,0.2)",
               flexShrink: 0,
             }}
