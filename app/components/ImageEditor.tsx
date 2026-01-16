@@ -14,16 +14,22 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
   const [brushSize, setBrushSize] = useState(30);
   const [isDrawing, setIsDrawing] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const maskCanvasRef = useRef<HTMLCanvasElement>(null);
   const [originalImage, setOriginalImage] = useState<HTMLImageElement | null>(null);
 
-  // Cargar imagen original
+  // Cargar imagen original (con mejor manejo de errores y CORS)
   useEffect(() => {
+    setIsLoading(true);
+    setLoadError(null);
+
     const img = new Image();
-    img.crossOrigin = "anonymous";
+    
     img.onload = () => {
+      console.log("✅ Imagen cargada:", img.width, "x", img.height);
       setOriginalImage(img);
       
       // Dibujar en canvas
@@ -31,22 +37,57 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
       const maskCanvas = maskCanvasRef.current;
       
       if (canvas && maskCanvas) {
-        canvas.width = img.width;
-        canvas.height = img.height;
-        maskCanvas.width = img.width;
-        maskCanvas.height = img.height;
+        // Ajustar tamaño del canvas
+        const maxSize = 800;
+        let width = img.width;
+        let height = img.height;
+        
+        if (width > maxSize || height > maxSize) {
+          const ratio = Math.min(maxSize / width, maxSize / height);
+          width = width * ratio;
+          height = height * ratio;
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        maskCanvas.width = width;
+        maskCanvas.height = height;
         
         const ctx = canvas.getContext("2d");
         const maskCtx = maskCanvas.getContext("2d");
         
         if (ctx && maskCtx) {
-          ctx.drawImage(img, 0, 0);
+          // Dibujar imagen escalada
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // Inicializar máscara en negro
           maskCtx.fillStyle = "black";
-          maskCtx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
+          maskCtx.fillRect(0, 0, width, height);
         }
       }
+      
+      setIsLoading(false);
     };
+    
+    img.onerror = (e) => {
+      console.error("❌ Error cargando imagen:", e);
+      setLoadError("Error al cargar la imagen. Verifica que la URL sea accesible.");
+      setIsLoading(false);
+    };
+    
+    // Intentar cargar con CORS
+    img.crossOrigin = "anonymous";
     img.src = imageUrl;
+    
+    // Timeout de seguridad
+    const timeout = setTimeout(() => {
+      if (isLoading) {
+        setLoadError("Timeout: La imagen tardó demasiado en cargar");
+        setIsLoading(false);
+      }
+    }, 10000);
+    
+    return () => clearTimeout(timeout);
   }, [imageUrl]);
 
   // Funciones de dibujo
@@ -103,7 +144,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
       const canvas = canvasRef.current;
       if (!canvas) throw new Error("Canvas no disponible");
       
-      const imageBase64 = canvas.toDataURL("image/jpeg").split(",")[1];
+      const imageBase64 = canvas.toDataURL("image/jpeg", 0.95).split(",")[1];
       
       // Obtener máscara en base64 (solo si es modo local)
       let maskBase64 = null;
@@ -112,6 +153,12 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
         if (!maskCanvas) throw new Error("Mask canvas no disponible");
         maskBase64 = maskCanvas.toDataURL("image/png").split(",")[1];
       }
+
+      console.log("🎨 Enviando edición:", {
+        mode: editMode,
+        hasMask: !!maskBase64,
+        prompt: editPrompt,
+      });
 
       // Llamar a la API de edición
       const response = await fetch("/api/edit-image", {
@@ -261,41 +308,63 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
               border: "2px solid #333",
               borderRadius: 12,
               overflow: "hidden",
+              background: "#000",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
             }}
           >
-            {/* Canvas de imagen */}
-            <canvas
-              ref={canvasRef}
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "100%",
-                height: "100%",
-                objectFit: "contain",
-              }}
-            />
+            {isLoading && (
+              <div style={{ color: "#fff", fontSize: 16 }}>
+                ⏳ Cargando imagen...
+              </div>
+            )}
             
-            {/* Canvas de máscara (solo visible en modo local) */}
-            {editMode === "local" && (
-              <canvas
-                ref={maskCanvasRef}
-                onMouseDown={startDrawing}
-                onMouseMove={draw}
-                onMouseUp={stopDrawing}
-                onMouseLeave={stopDrawing}
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "contain",
-                  cursor: "crosshair",
-                  opacity: 0.5,
-                  mixBlendMode: "screen",
-                }}
-              />
+            {loadError && (
+              <div style={{ color: "#ef4444", fontSize: 14, textAlign: "center", padding: 20 }}>
+                ❌ {loadError}
+              </div>
+            )}
+            
+            {!isLoading && !loadError && (
+              <>
+                {/* Canvas de imagen */}
+                <canvas
+                  ref={canvasRef}
+                  style={{
+                    position: "absolute",
+                    top: "50%",
+                    left: "50%",
+                    transform: "translate(-50%, -50%)",
+                    maxWidth: "100%",
+                    maxHeight: "100%",
+                    objectFit: "contain",
+                  }}
+                />
+                
+                {/* Canvas de máscara (solo visible en modo local) */}
+                {editMode === "local" && (
+                  <canvas
+                    ref={maskCanvasRef}
+                    onMouseDown={startDrawing}
+                    onMouseMove={draw}
+                    onMouseUp={stopDrawing}
+                    onMouseLeave={stopDrawing}
+                    style={{
+                      position: "absolute",
+                      top: "50%",
+                      left: "50%",
+                      transform: "translate(-50%, -50%)",
+                      maxWidth: "100%",
+                      maxHeight: "100%",
+                      objectFit: "contain",
+                      cursor: "crosshair",
+                      opacity: 0.5,
+                      mixBlendMode: "screen",
+                    }}
+                  />
+                )}
+              </>
             )}
           </div>
 
@@ -329,17 +398,17 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
 
           <button
             onClick={handleApply}
-            disabled={isProcessing}
+            disabled={isProcessing || isLoading}
             style={{
               padding: "12px 24px",
-              background: isProcessing ? "#666" : "#3b82f6",
+              background: isProcessing || isLoading ? "#666" : "#3b82f6",
               border: "none",
               borderRadius: 10,
               color: "#fff",
               fontSize: 16,
               fontWeight: 600,
-              cursor: isProcessing ? "not-allowed" : "pointer",
-              opacity: isProcessing ? 0.5 : 1,
+              cursor: isProcessing || isLoading ? "not-allowed" : "pointer",
+              opacity: isProcessing || isLoading ? 0.5 : 1,
             }}
           >
             {isProcessing ? "⏳ Editando..." : "✨ Aplicar Edición"}
