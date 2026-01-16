@@ -1109,13 +1109,28 @@ export default function ProjectPage() {
               {isRegenerating ? "⏳ Regenerando..." : "🔄 Regenerar"}
             </button>
             <button
-              onClick={() => {
+              onClick={async () => {
                 if (reviewModal?.currentImage?.url) {
-                  setEditorModal({
-                    open: true,
-                    imageUrl: reviewModal.currentImage.url,
-                    imageId: reviewModal.currentImage.id,
-                  });
+                  try {
+                    // Pre-cargar imagen como base64
+                    const response = await fetch(`/api/image-proxy?url=${encodeURIComponent(reviewModal.currentImage.url)}`);
+                    const blob = await response.blob();
+                    const reader = new FileReader();
+                    
+                    reader.onloadend = () => {
+                      const base64 = reader.result as string;
+                      setEditorModal({
+                        open: true,
+                        imageUrl: base64, // Usar base64 en lugar de URL
+                        imageId: reviewModal.currentImage!.id,
+                      });
+                    };
+                    
+                    reader.readAsDataURL(blob);
+                  } catch (error) {
+                    console.error("Error cargando imagen:", error);
+                    alert("Error al cargar la imagen para editar");
+                  }
                 }
               }}
               style={{
@@ -1131,10 +1146,6 @@ export default function ProjectPage() {
             >
               ✏️ Editar
             </button>
-          </div>
-
-          {/* MINIATURAS (IZQUIERDA) + PROMPT (DERECHA) */}
-          <div
             style={{
               display: "grid",
               gridTemplateColumns: "1fr 550px",

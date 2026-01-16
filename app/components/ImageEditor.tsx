@@ -21,7 +21,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
   const maskCanvasRef = useRef<HTMLCanvasElement>(null);
   const [originalImage, setOriginalImage] = useState<HTMLImageElement | null>(null);
 
-  // Cargar imagen original (usando proxy para evitar CORS)
+  // Cargar imagen original (soporta tanto URL como base64)
   useEffect(() => {
     setIsLoading(true);
     setLoadError(null);
@@ -75,21 +75,15 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
       setIsLoading(false);
     };
     
-    // Usar proxy para evitar problemas de CORS
-    const proxyUrl = `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
-    console.log("📡 Cargando imagen via proxy:", proxyUrl);
+    // Si ya es base64, usarlo directamente. Si es URL, usar proxy
+    if (imageUrl.startsWith("data:")) {
+      console.log("📷 Cargando imagen desde base64");
+      img.src = imageUrl;
+    } else {
+      console.log("📡 Cargando imagen via proxy:", imageUrl);
+      img.src = `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+    }
     
-    img.src = proxyUrl;
-    
-    // Timeout de seguridad (aumentado a 20 segundos)
-    const timeout = setTimeout(() => {
-      if (isLoading) {
-        setLoadError("La imagen tardó demasiado en cargar. Verifica tu conexión.");
-        setIsLoading(false);
-      }
-    }, 20000);
-    
-    return () => clearTimeout(timeout);
   }, [imageUrl]);
 
   // Funciones de dibujo
