@@ -174,14 +174,12 @@ export default function ProjectPage() {
   };
 
   /* ======================================================
-     🆕 FUNCIÓN DE REGENERACIÓN
+     🆕 FUNCIÓN DE REGENERACIÓN IN-SITU
   ====================================================== */
   const handleRegenerate = async () => {
     if (!reviewModal || !reviewModal.currentImage) return;
 
     const currentImg = reviewModal.currentImage;
-
-    // 🔧 Validar que haya prompt (editable) y URL original
     const promptToUse = editablePrompt.trim();
     
     if (!promptToUse) {
@@ -197,16 +195,33 @@ export default function ProjectPage() {
     setIsRegenerating(true);
 
     try {
-      // Llamar a la API de generación con el prompt editable
+      // 🔧 PASO 1: Obtener dimensiones de la imagen original
+      let width = 1024;
+      let height = 1024;
+      
+      if (currentImg.url) {
+        const img = new Image();
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => {
+            width = img.naturalWidth;
+            height = img.naturalHeight;
+            resolve();
+          };
+          img.onerror = reject;
+          img.src = currentImg.url;
+        });
+      }
+
+      // 🔧 PASO 2: Generar nueva imagen con las MISMAS dimensiones
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           refs: [currentImg.original_image_url],
           count: 1,
-          overridePrompt: promptToUse, // 🔧 Usar el prompt editado
-          width: 1024,
-          height: 1024,
+          overridePrompt: promptToUse,
+          width,
+          height,
           format: "jpg",
           engine: "v2",
         }),
@@ -218,41 +233,56 @@ export default function ProjectPage() {
         throw new Error("Error generando imagen");
       }
 
-      // Guardar la nueva versión en el proyecto
+      // 🔧 PASO 3: Actualizar la imagen existente (REEMPLAZAR)
       const newImage = data.images[0];
-      const saveRes = await fetch("/api/projects/add-images", {
+      const updateRes = await fetch("/api/projects/update-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          projectId,
-          images: [{
-            base64: newImage.base64,
-            mime: newImage.mime || "image/jpeg",
-            filename: `${currentImg.reference}_v${Date.now()}.jpg`,
-            reference: currentImg.reference,
-            asin: currentImg.asin,
-            image_index: currentImg.index || 0,
-          }],
-          originalImageUrl: currentImg.original_image_url,
-          promptUsed: promptToUse, // 🔧 Guardar el prompt editado
+          imageId: currentImg.id,
+          base64: newImage.base64,
+          mime: newImage.mime || "image/jpeg",
+          promptUsed: promptToUse,
         }),
       });
 
-      const saveData = await saveRes.json();
+      const updateData = await updateRes.json();
 
-      if (!saveRes.ok || !saveData.success) {
-        throw new Error("Error guardando imagen regenerada");
+      if (!updateRes.ok || !updateData.success) {
+        throw new Error("Error actualizando imagen");
       }
 
-      alert("✅ Imagen regenerada exitosamente");
+      // 🔧 PASO 4: Actualizar imagen en el modal SIN CERRAR
+      const newUrl = `${updateData.url}?t=${Date.now()}`;
       
-      // Recargar imágenes y cerrar modal
-      await loadImages();
-      setReviewModal(null);
+      setReviewModal({
+        ...reviewModal,
+        currentImage: {
+          ...currentImg,
+          url: newUrl,
+          prompt_used: promptToUse,
+        },
+        imagesInReference: reviewModal.imagesInReference.map(img =>
+          img.id === currentImg.id
+            ? { ...img, url: newUrl, prompt_used: promptToUse }
+            : img
+        ),
+      });
+
+      // 🔧 PASO 5: Actualizar estado global
+      setImages(prev =>
+        prev.map(img =>
+          img.id === currentImg.id
+            ? { ...img, url: newUrl, prompt_used: promptToUse }
+            : img
+        )
+      );
+
+      alert("✅ Imagen regenerada exitosamente");
 
     } catch (error: any) {
       console.error("Error regenerando:", error);
-      alert("❌ Error regenerando la imagen");
+      alert("❌ Error: " + error.message);
     } finally {
       setIsRegenerating(false);
     }
@@ -791,7 +821,7 @@ export default function ProjectPage() {
               gap: 20,
               padding: "0 20px",
               alignItems: "center",
-              height: "calc(100vh - 300px)",
+              height: "calc(100vh - 260px)",
               flexShrink: 0,
             }}
           >
@@ -835,7 +865,7 @@ export default function ProjectPage() {
                     src={reviewModal.currentImage.original_image_url}
                     style={{
                       maxWidth: "100%",
-                      maxHeight: "calc(100vh - 350px)",
+                      maxHeight: "calc(100vh - 310px)",
                       objectFit: "contain",
                       borderRadius: 12,
                       cursor: "crosshair",
@@ -923,7 +953,7 @@ export default function ProjectPage() {
                     src={reviewModal.currentImage.url}
                     style={{
                       maxWidth: "100%",
-                      maxHeight: "calc(100vh - 350px)",
+                      maxHeight: "calc(100vh - 310px)",
                       objectFit: "contain",
                       borderRadius: 12,
                       cursor: "crosshair",
@@ -1020,7 +1050,7 @@ export default function ProjectPage() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 400px",
+              gridTemplateColumns: "1fr 500px",
               gap: 20,
               padding: "16px 20px",
               borderTop: "2px solid rgba(255,255,255,0.2)",
