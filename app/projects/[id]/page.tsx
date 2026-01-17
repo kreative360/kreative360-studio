@@ -842,7 +842,7 @@ export default function ProjectPage() {
               gap: 20,
               padding: "0 20px",
               alignItems: "center",
-              height: "calc(100vh - 280px)",
+              height: "calc(100vh - 240px)",
               flexShrink: 0,
             }}
           >
@@ -1186,7 +1186,7 @@ export default function ProjectPage() {
                   fontFamily: "inherit",
                   resize: "vertical",
                   lineHeight: "1.4",
-                  minHeight: "70px",
+                  minHeight: "90px",
                 }}
               />
             </div>
