@@ -21,69 +21,87 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
   const maskCanvasRef = useRef<HTMLCanvasElement>(null);
   const [originalImage, setOriginalImage] = useState<HTMLImageElement | null>(null);
 
-  // Cargar imagen original (soporta tanto URL como base64)
+  // Cargar imagen original (convierte URL a base64 via proxy)
   useEffect(() => {
     setIsLoading(true);
     setLoadError(null);
 
-    const img = new Image();
-    
-    img.onload = () => {
-      console.log("✅ Imagen cargada:", img.width, "x", img.height);
-      setOriginalImage(img);
-      
-      // Dibujar en canvas
-      const canvas = canvasRef.current;
-      const maskCanvas = maskCanvasRef.current;
-      
-      if (canvas && maskCanvas) {
-        // Ajustar tamaño del canvas
-        const maxSize = 800;
-        let width = img.width;
-        let height = img.height;
-        
-        if (width > maxSize || height > maxSize) {
-          const ratio = Math.min(maxSize / width, maxSize / height);
-          width = width * ratio;
-          height = height * ratio;
-        }
-        
-        canvas.width = width;
-        canvas.height = height;
-        maskCanvas.width = width;
-        maskCanvas.height = height;
-        
-        const ctx = canvas.getContext("2d");
-        const maskCtx = maskCanvas.getContext("2d");
-        
-        if (ctx && maskCtx) {
-          // Dibujar imagen escalada
-          ctx.drawImage(img, 0, 0, width, height);
+    const loadImage = async () => {
+      try {
+        let imageDataUrl = imageUrl;
+
+        // Si NO es base64, convertir via proxy
+        if (!imageUrl.startsWith("data:")) {
+          console.log("📡 Descargando imagen via proxy...");
+          const response = await fetch(`/api/image-proxy?url=${encodeURIComponent(imageUrl)}`);
           
-          // Inicializar máscara en negro
-          maskCtx.fillStyle = "black";
-          maskCtx.fillRect(0, 0, width, height);
+          if (!response.ok) {
+            throw new Error("Error descargando imagen");
+          }
+
+          const blob = await response.blob();
+          imageDataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+          console.log("✅ Imagen convertida a base64");
         }
+
+        // Cargar imagen en elemento Image
+        const img = new Image();
+        
+        img.onload = () => {
+          console.log("✅ Imagen cargada en canvas:", img.width, "x", img.height);
+          setOriginalImage(img);
+          
+          const canvas = canvasRef.current;
+          const maskCanvas = maskCanvasRef.current;
+          
+          if (canvas && maskCanvas) {
+            const maxSize = 800;
+            let width = img.width;
+            let height = img.height;
+            
+            if (width > maxSize || height > maxSize) {
+              const ratio = Math.min(maxSize / width, maxSize / height);
+              width = width * ratio;
+              height = height * ratio;
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            maskCanvas.width = width;
+            maskCanvas.height = height;
+            
+            const ctx = canvas.getContext("2d");
+            const maskCtx = maskCanvas.getContext("2d");
+            
+            if (ctx && maskCtx) {
+              ctx.drawImage(img, 0, 0, width, height);
+              maskCtx.fillStyle = "black";
+              maskCtx.fillRect(0, 0, width, height);
+            }
+          }
+          
+          setIsLoading(false);
+        };
+        
+        img.onerror = () => {
+          throw new Error("Error al cargar imagen en canvas");
+        };
+        
+        img.src = imageDataUrl;
+
+      } catch (error: any) {
+        console.error("❌ Error:", error);
+        setLoadError(error.message || "Error al cargar la imagen");
+        setIsLoading(false);
       }
-      
-      setIsLoading(false);
     };
-    
-    img.onerror = (e) => {
-      console.error("❌ Error cargando imagen:", e);
-      setLoadError("Error al cargar la imagen. Intenta de nuevo.");
-      setIsLoading(false);
-    };
-    
-    // Si ya es base64, usarlo directamente. Si es URL, usar proxy
-    if (imageUrl.startsWith("data:")) {
-      console.log("📷 Cargando imagen desde base64");
-      img.src = imageUrl;
-    } else {
-      console.log("📡 Cargando imagen via proxy:", imageUrl);
-      img.src = `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
-    }
-    
+
+    loadImage();
   }, [imageUrl]);
 
   // Funciones de dibujo
@@ -323,17 +341,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
               <div style={{ color: "#ef4444", fontSize: 14, textAlign: "center", padding: 20 }}>
                 <div style={{ marginBottom: 16 }}>❌ {loadError}</div>
                 <button
-                  onClick={() => {
-                    setIsLoading(true);
-                    setLoadError(null);
-                    const img = new Image();
-                    img.onload = () => {
-                      console.log("✅ Imagen cargada (retry)");
-                      window.location.reload();
-                    };
-                    img.onerror = () => setLoadError("Error al cargar imagen");
-                    img.src = imageUrl.startsWith("data:") ? imageUrl : `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
-                  }}
+                  onClick={() => window.location.reload()}
                   style={{
                     padding: "8px 16px",
                     background: "#3b82f6",
