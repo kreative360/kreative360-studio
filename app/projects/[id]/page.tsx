@@ -301,13 +301,19 @@ export default function ProjectPage() {
           imageId: editorImageId, 
           base64, 
           mime: "image/jpeg", 
-          promptUsed: "Editado" 
+          promptUsed: "Editado con IA" 
         }),
       });
-      if (!res.ok) throw new Error("Error");
+      if (!res.ok) throw new Error("Error al actualizar");
       const data = await res.json();
       const newUrl = data.url + "?t=" + Date.now();
-      setImages(prev => prev.map(img => img.id === editorImageId ? { ...img, url: newUrl } : img));
+      
+      // Actualizar estado de imágenes
+      setImages(prev => prev.map(img => 
+        img.id === editorImageId ? { ...img, url: newUrl } : img
+      ));
+      
+      // Actualizar modal de revisión si está abierto
       if (reviewModal && reviewModal.currentImage?.id === editorImageId) {
         setReviewModal({
           ...reviewModal,
@@ -317,9 +323,11 @@ export default function ProjectPage() {
           ),
         });
       }
+      
       setShowEditor(false);
-    } catch (e) {
-      alert("Error al guardar");
+    } catch (error) {
+      console.error("Error:", error);
+      alert("Error al guardar la edición");
     }
   };
 
@@ -1100,27 +1108,6 @@ export default function ProjectPage() {
             >
               ✏️ Editar
             </button>
-            <button
-              onClick={() => {
-                if (reviewModal?.currentImage) {
-                  setEditorImageUrl(reviewModal.currentImage.url);
-                  setEditorImageId(reviewModal.currentImage.id);
-                  setShowEditor(true);
-                }
-              }}
-              style={{ 
-                background: "#8b5cf6", 
-                color: "#fff", 
-                border: "none", 
-                borderRadius: 10, 
-                padding: "10px 28px", 
-                fontSize: 15, 
-                fontWeight: 600, 
-                cursor: "pointer" 
-              }}
-            >
-              ✏️ Editar
-            </button>
           </div>
 
           {/* MINIATURAS (IZQUIERDA) + PROMPT (DERECHA) */}
@@ -1230,14 +1217,13 @@ export default function ProjectPage() {
                   fontFamily: "inherit",
                   resize: "vertical",
                   lineHeight: "1.4",
-                  minHeight: "100px",
+                  minHeight: "110px",
                 }}
               />
             </div>
           </div>
         </div>
       )}
-
 
       {showEditor && (
         <ImageEditor
