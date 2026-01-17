@@ -1119,6 +1119,7 @@ export default function ProjectPage() {
               padding: "20px 20px 32px",
               borderTop: "2px solid rgba(255,255,255,0.2)",
               flexShrink: 0,
+              minHeight: "180px",
             }}
           >
             {/* MINIATURAS */}
