@@ -1081,12 +1081,10 @@ export default function ProjectPage() {
             </button>
             <button
               onClick={() => {
-                if (reviewModal?.currentImage?.url) {
-                  setEditorModal({
-                    open: true,
-                    imageUrl: reviewModal.currentImage.url,
-                    imageId: reviewModal.currentImage.id,
-                  });
+                if (reviewModal?.currentImage) {
+                  setEditorImageUrl(reviewModal.currentImage.url);
+                  setEditorImageId(reviewModal.currentImage.id);
+                  setShowEditor(true);
                 }
               }}
               style={{
@@ -1240,14 +1238,6 @@ export default function ProjectPage() {
         </div>
       )}
 
-      {/* 🆕 MODAL DEL EDITOR DE IMÁGENES */}
-      {editorModal?.open && (
-        <ImageEditor
-          imageUrl={editorModal.imageUrl}
-          onSave={handleEditSave}
-          onCancel={() => setEditorModal(null)}
-        />
-      )}
 
       {showEditor && (
         <ImageEditor
