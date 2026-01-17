@@ -70,6 +70,8 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
               height = height * ratio;
             }
             
+            console.log("📐 Dimensiones canvas:", width, "x", height);
+            
             canvas.width = width;
             canvas.height = height;
             maskCanvas.width = width;
@@ -80,9 +82,16 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
             
             if (ctx && maskCtx) {
               ctx.drawImage(img, 0, 0, width, height);
+              console.log("🎨 Imagen dibujada en canvas");
+              
               maskCtx.fillStyle = "black";
               maskCtx.fillRect(0, 0, width, height);
+              console.log("🎭 Máscara inicializada");
+            } else {
+              console.error("❌ No se pudo obtener contexto del canvas");
             }
+          } else {
+            console.error("❌ Canvas ref no disponible");
           }
           
           setIsLoading(false);
