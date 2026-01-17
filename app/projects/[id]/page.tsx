@@ -842,7 +842,7 @@ export default function ProjectPage() {
               gap: 20,
               padding: "0 20px",
               alignItems: "center",
-              height: "calc(100vh - 240px)",
+              height: "calc(100vh - 280px)",
               flexShrink: 0,
             }}
           >
