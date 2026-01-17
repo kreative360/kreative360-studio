@@ -802,7 +802,7 @@ export default function ProjectPage() {
           {/* Cabecera */}
           <div
             style={{
-              padding: "16px 20px",
+              padding: "20px 20px 24px",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
@@ -1085,7 +1085,7 @@ export default function ProjectPage() {
               display: "grid",
               gridTemplateColumns: "1fr 550px",
               gap: 20,
-              padding: "16px 20px",
+              padding: "20px 20px 32px",
               borderTop: "2px solid rgba(255,255,255,0.2)",
               flexShrink: 0,
             }}
