@@ -297,12 +297,26 @@ export default function ProjectPage() {
       const res = await fetch("/api/projects/update-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageId: editorImageId, base64, mime: "image/jpeg", promptUsed: "Editado" }),
+        body: JSON.stringify({ 
+          imageId: editorImageId, 
+          base64, 
+          mime: "image/jpeg", 
+          promptUsed: "Editado" 
+        }),
       });
       if (!res.ok) throw new Error("Error");
       const data = await res.json();
       const newUrl = data.url + "?t=" + Date.now();
       setImages(prev => prev.map(img => img.id === editorImageId ? { ...img, url: newUrl } : img));
+      if (reviewModal && reviewModal.currentImage?.id === editorImageId) {
+        setReviewModal({
+          ...reviewModal,
+          currentImage: { ...reviewModal.currentImage, url: newUrl },
+          imagesInReference: reviewModal.imagesInReference.map(img =>
+            img.id === editorImageId ? { ...img, url: newUrl } : img
+          ),
+        });
+      }
       setShowEditor(false);
     } catch (e) {
       alert("Error al guardar");
@@ -802,7 +816,7 @@ export default function ProjectPage() {
           {/* Cabecera */}
           <div
             style={{
-              padding: "20px 20px 24px",
+              padding: "16px 20px",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
@@ -1067,13 +1081,45 @@ export default function ProjectPage() {
             </button>
             <button
               onClick={() => {
+                if (reviewModal?.currentImage?.url) {
+                  setEditorModal({
+                    open: true,
+                    imageUrl: reviewModal.currentImage.url,
+                    imageId: reviewModal.currentImage.id,
+                  });
+                }
+              }}
+              style={{
+                background: "#8b5cf6",
+                color: "#fff",
+                border: "none",
+                borderRadius: 10,
+                padding: "10px 28px",
+                fontSize: 15,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              ✏️ Editar
+            </button>
+            <button
+              onClick={() => {
                 if (reviewModal?.currentImage) {
                   setEditorImageUrl(reviewModal.currentImage.url);
                   setEditorImageId(reviewModal.currentImage.id);
                   setShowEditor(true);
                 }
               }}
-              style={{ background: "#8b5cf6", color: "#fff", border: "none", borderRadius: 10, padding: "10px 28px", fontSize: 15, fontWeight: 600, cursor: "pointer" }}
+              style={{ 
+                background: "#8b5cf6", 
+                color: "#fff", 
+                border: "none", 
+                borderRadius: 10, 
+                padding: "10px 28px", 
+                fontSize: 15, 
+                fontWeight: 600, 
+                cursor: "pointer" 
+              }}
             >
               ✏️ Editar
             </button>
@@ -1085,7 +1131,7 @@ export default function ProjectPage() {
               display: "grid",
               gridTemplateColumns: "1fr 550px",
               gap: 20,
-              padding: "20px 20px 32px",
+              padding: "16px 20px",
               borderTop: "2px solid rgba(255,255,255,0.2)",
               flexShrink: 0,
             }}
@@ -1186,12 +1232,21 @@ export default function ProjectPage() {
                   fontFamily: "inherit",
                   resize: "vertical",
                   lineHeight: "1.4",
-                  minHeight: "90px",
+                  minHeight: "100px",
                 }}
               />
             </div>
           </div>
         </div>
+      )}
+
+      {/* 🆕 MODAL DEL EDITOR DE IMÁGENES */}
+      {editorModal?.open && (
+        <ImageEditor
+          imageUrl={editorModal.imageUrl}
+          onSave={handleEditSave}
+          onCancel={() => setEditorModal(null)}
+        />
       )}
 
       {showEditor && (
