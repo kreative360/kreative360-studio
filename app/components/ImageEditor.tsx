@@ -56,10 +56,18 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
           console.log("✅ Imagen cargada en canvas:", img.width, "x", img.height);
           setOriginalImage(img);
           
-          const canvas = canvasRef.current;
-          const maskCanvas = maskCanvasRef.current;
-          
-          if (canvas && maskCanvas) {
+          // Esperar un frame para que React monte los canvas
+          requestAnimationFrame(() => {
+            const canvas = canvasRef.current;
+            const maskCanvas = maskCanvasRef.current;
+            
+            if (!canvas || !maskCanvas) {
+              console.error("❌ Canvas ref no disponible");
+              setLoadError("Error: Canvas no disponible");
+              setIsLoading(false);
+              return;
+            }
+            
             const maxSize = 800;
             let width = img.width;
             let height = img.height;
@@ -80,21 +88,22 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
             const ctx = canvas.getContext("2d");
             const maskCtx = maskCanvas.getContext("2d");
             
-            if (ctx && maskCtx) {
-              ctx.drawImage(img, 0, 0, width, height);
-              console.log("🎨 Imagen dibujada en canvas");
-              
-              maskCtx.fillStyle = "black";
-              maskCtx.fillRect(0, 0, width, height);
-              console.log("🎭 Máscara inicializada");
-            } else {
+            if (!ctx || !maskCtx) {
               console.error("❌ No se pudo obtener contexto del canvas");
+              setLoadError("Error: No se pudo inicializar canvas");
+              setIsLoading(false);
+              return;
             }
-          } else {
-            console.error("❌ Canvas ref no disponible");
-          }
-          
-          setIsLoading(false);
+            
+            ctx.drawImage(img, 0, 0, width, height);
+            console.log("🎨 Imagen dibujada en canvas");
+            
+            maskCtx.fillStyle = "black";
+            maskCtx.fillRect(0, 0, width, height);
+            console.log("🎭 Máscara inicializada");
+            
+            setIsLoading(false);
+          });
         };
         
         img.onerror = () => {
@@ -337,8 +346,45 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
               justifyContent: "center",
             }}
           >
+            {/* Canvas SIEMPRE presente */}
+            <canvas
+              ref={canvasRef}
+              style={{
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                maxWidth: "100%",
+                maxHeight: "100%",
+                objectFit: "contain",
+                display: isLoading || loadError ? "none" : "block",
+              }}
+            />
+            
+            {/* Canvas de máscara - SIEMPRE presente */}
+            <canvas
+              ref={maskCanvasRef}
+              onMouseDown={startDrawing}
+              onMouseMove={draw}
+              onMouseUp={stopDrawing}
+              onMouseLeave={stopDrawing}
+              style={{
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                maxWidth: "100%",
+                maxHeight: "100%",
+                objectFit: "contain",
+                cursor: editMode === "local" ? "crosshair" : "default",
+                opacity: editMode === "local" && !isLoading && !loadError ? 0.5 : 0,
+                mixBlendMode: "screen",
+                pointerEvents: editMode === "local" && !isLoading && !loadError ? "auto" : "none",
+              }}
+            />
+
             {isLoading && (
-              <div style={{ color: "#fff", fontSize: 16, textAlign: "center" }}>
+              <div style={{ color: "#fff", fontSize: 16, textAlign: "center", zIndex: 10 }}>
                 <div style={{ marginBottom: 16 }}>⏳ Cargando imagen...</div>
                 <div style={{ fontSize: 12, opacity: 0.7 }}>
                   Esto puede tardar unos segundos
@@ -347,7 +393,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
             )}
             
             {loadError && (
-              <div style={{ color: "#ef4444", fontSize: 14, textAlign: "center", padding: 20 }}>
+              <div style={{ color: "#ef4444", fontSize: 14, textAlign: "center", padding: 20, zIndex: 10 }}>
                 <div style={{ marginBottom: 16 }}>❌ {loadError}</div>
                 <button
                   onClick={() => window.location.reload()}
@@ -363,47 +409,6 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
                   🔄 Reintentar
                 </button>
               </div>
-            )}
-            
-            {!isLoading && !loadError && (
-              <>
-                {/* Canvas de imagen */}
-                <canvas
-                  ref={canvasRef}
-                  style={{
-                    position: "absolute",
-                    top: "50%",
-                    left: "50%",
-                    transform: "translate(-50%, -50%)",
-                    maxWidth: "100%",
-                    maxHeight: "100%",
-                    objectFit: "contain",
-                  }}
-                />
-                
-                {/* Canvas de máscara (solo visible en modo local) */}
-                {editMode === "local" && (
-                  <canvas
-                    ref={maskCanvasRef}
-                    onMouseDown={startDrawing}
-                    onMouseMove={draw}
-                    onMouseUp={stopDrawing}
-                    onMouseLeave={stopDrawing}
-                    style={{
-                      position: "absolute",
-                      top: "50%",
-                      left: "50%",
-                      transform: "translate(-50%, -50%)",
-                      maxWidth: "100%",
-                      maxHeight: "100%",
-                      objectFit: "contain",
-                      cursor: "crosshair",
-                      opacity: 0.5,
-                      mixBlendMode: "screen",
-                    }}
-                  />
-                )}
-              </>
             )}
           </div>
 
