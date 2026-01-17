@@ -1191,7 +1191,7 @@ export default function ProjectPage() {
             </div>
 
             {/* PROMPT EDITABLE (DERECHA) */}
-            <div style={{ display: "flex", flexDirection: "column" }}>
+            <div style={{ display: "flex", flexDirection: "column", height: "140px" }}>
               <p
                 style={{
                   color: "#fff",
