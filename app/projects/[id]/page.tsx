@@ -818,7 +818,7 @@ export default function ProjectPage() {
             display: "flex",
             flexDirection: "column",
             zIndex: 9999,
-            overflow: "hidden",
+            overflow: "auto",
           }}
         >
           {/* Cabecera */}
