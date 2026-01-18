@@ -20,7 +20,6 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
   const maskCanvasRef = useRef<HTMLCanvasElement>(null);
   const [originalImage, setOriginalImage] = useState<HTMLImageElement | null>(null);
 
-  // Cargar imagen original
   useEffect(() => {
     setIsLoading(true);
     setLoadError(null);
@@ -64,7 +63,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
               return;
             }
             
-            const maxSize = 800;
+            const maxSize = 900;
             let width = img.width;
             let height = img.height;
             
@@ -118,7 +117,6 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
     loadImage();
   }, [imageUrl]);
 
-  // Funciones de dibujo
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
     setIsDrawing(true);
     draw(e);
@@ -158,7 +156,6 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
     }
   };
 
-  // Detectar si hay área pintada
   const hasPaintedArea = (): boolean => {
     const maskCanvas = maskCanvasRef.current;
     if (!maskCanvas) return false;
@@ -262,9 +259,9 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
         style={{
           background: "#fff",
           borderRadius: 12,
-          width: "90vw",
-          maxWidth: 1100,
-          maxHeight: "90vh",
+          width: "95vw",
+          maxWidth: 1400,
+          height: "95vh",
           display: "flex",
           flexDirection: "column",
         }}
@@ -302,7 +299,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
           {/* Lado izquierdo - Canvas */}
           <div
             style={{
-              flex: "0 0 60%",
+              flex: "0 0 70%",
               padding: 24,
               display: "flex",
               flexDirection: "column",
@@ -385,7 +382,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
               <button
                 style={{
                   padding: "8px 16px",
-                  background: "#2c2c2c",
+                  background: "#ff5a5f",
                   color: "#fff",
                   border: "none",
                   borderRadius: 6,
@@ -450,7 +447,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
           {/* Lado derecho - Instrucciones */}
           <div
             style={{
-              flex: "0 0 40%",
+              flex: "0 0 30%",
               padding: 24,
               background: "#fef6f5",
               display: "flex",
@@ -470,7 +467,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
 Ejemplo: 'Cambia el color del producto a azul'"
                 style={{
                   width: "100%",
-                  height: 200,
+                  height: 150,
                   padding: 12,
                   background: "#fff",
                   border: "1px solid #e5e5e5",
@@ -513,7 +510,7 @@ Ejemplo: 'Cambia el color del producto a azul'"
                 style={{
                   flex: 1,
                   padding: "12px",
-                  background: isProcessing || isLoading ? "#ccc" : "#2c2c2c",
+                  background: isProcessing || isLoading ? "#ccc" : "#ff5a5f",
                   border: "none",
                   borderRadius: 8,
                   color: "#fff",
