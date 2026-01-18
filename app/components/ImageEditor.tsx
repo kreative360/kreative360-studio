@@ -145,7 +145,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
     
     const ctx = maskCanvas.getContext("2d");
     if (ctx) {
-      ctx.fillStyle = "white";
+      ctx.fillStyle = "#ff6b6b";
       ctx.beginPath();
       ctx.arc(x, y, brushSize, 0, Math.PI * 2);
       ctx.fill();
