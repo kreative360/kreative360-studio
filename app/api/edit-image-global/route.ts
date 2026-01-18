@@ -21,7 +21,7 @@ export async function POST(request: Request) {
       model: "gemini-2.5-flash-image",
     });
 
-    const parts = [
+    const parts: any = [
       { text: editPrompt },
       {
         inlineData: {
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
       },
     ];
 
-    // Llamada directa con array de parts (forma más simple)
+    // Llamada directa con array de parts
     const result = await model.generateContent(parts);
 
     // Extraer imagen
