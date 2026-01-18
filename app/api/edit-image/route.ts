@@ -33,83 +33,91 @@ export async function POST(request: Request) {
       );
     }
 
-    // Determinar el endpoint según el modo
-    let endpoint = "";
-    let requestBody: any = {
+    console.log("📡 Llamando a FAL API...");
+
+    // Construir el body según el modo
+    const requestBody: any = {
       prompt: editPrompt,
-      image_size: {
-        width: width || 1024,
-        height: height || 1024,
-      },
+      image_url: `data:image/jpeg;base64,${imageBase64}`,
+      num_inference_steps: 28,
+      guidance_scale: 3.5,
       num_images: 1,
+      enable_safety_checker: false,
+      output_format: "jpeg",
+      sync_mode: true,
     };
 
+    // Si es modo local, añadir la máscara
     if (editMode === "local" && maskBase64) {
-      // MODO LOCAL: Inpainting con máscara
-      endpoint = "https://queue.fal.run/fal-ai/flux/dev/image-to-image";
-      requestBody.image_url = `data:image/jpeg;base64,${imageBase64}`;
       requestBody.mask_url = `data:image/png;base64,${maskBase64}`;
-      requestBody.strength = 0.95; // Más transformación en área seleccionada
+      requestBody.strength = 0.95;
     } else {
-      // MODO GLOBAL: Image-to-image sin máscara
-      endpoint = "https://queue.fal.run/fal-ai/flux/dev/image-to-image";
-      requestBody.image_url = `data:image/jpeg;base64,${imageBase64}`;
-      requestBody.strength = 0.75; // Menos transformación, mantener estructura
+      // Modo global - solo image-to-image
+      requestBody.strength = 0.75;
     }
 
-    console.log("📡 Llamando a FAL:", endpoint);
-
-    // Llamar a la API de FAL
-    const response = await fetch(endpoint, {
+    // Llamar a FAL
+    const response = await fetch("https://fal.run/fal-ai/flux/dev/image-to-image", {
       method: "POST",
       headers: {
-        Authorization: `Key ${FAL_KEY}`,
+        "Authorization": `Key ${FAL_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(requestBody),
     });
 
+    const data = await response.json();
+
+    console.log("📥 Respuesta de FAL:", {
+      status: response.status,
+      ok: response.ok,
+      hasImages: !!data.images,
+    });
+
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("❌ Error de FAL:", errorText);
+      console.error("❌ Error de FAL:", data);
       return NextResponse.json(
-        { success: false, error: "Error en la API de FAL: " + response.statusText },
+        { 
+          success: false, 
+          error: data.detail || data.error || "Error en FAL API" 
+        },
         { status: response.status }
       );
     }
 
-    const data = await response.json();
-    console.log("✅ Respuesta de FAL:", data);
-
-    // Extraer la URL de la imagen generada
-    const imageUrl = data.images?.[0]?.url || data.image?.url;
-
-    if (!imageUrl) {
-      console.error("❌ No se encontró URL de imagen en respuesta:", data);
+    // Verificar que tenemos imágenes
+    if (!data.images || !data.images[0] || !data.images[0].url) {
+      console.error("❌ No se recibió imagen en la respuesta");
       return NextResponse.json(
         { success: false, error: "No se generó imagen" },
         { status: 500 }
       );
     }
 
-    // Descargar la imagen y convertirla a base64
+    // Descargar la imagen y convertir a base64
+    console.log("📥 Descargando imagen editada...");
+    const imageUrl = data.images[0].url;
     const imageResponse = await fetch(imageUrl);
     const imageBuffer = await imageResponse.arrayBuffer();
-    const base64Image = Buffer.from(imageBuffer).toString("base64");
+    const base64Image = Buffer.from(imageBuffer).toString('base64');
+
+    console.log("✅ Imagen editada generada exitosamente");
 
     return NextResponse.json({
       success: true,
       image: {
         base64: base64Image,
         url: imageUrl,
-        mime: "image/jpeg",
       },
     });
 
   } catch (error: any) {
-    console.error("❌ Error fatal en edit-image:", error);
+    console.error("❌ Error en edit-image:", error);
     return NextResponse.json(
-      { success: false, error: error.message },
+      { 
+        success: false, 
+        error: error.message || "Error interno del servidor" 
+      },
       { status: 500 }
     );
   }
