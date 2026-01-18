@@ -4,12 +4,29 @@ const FAL_KEY = process.env.FAL_KEY;
 
 export async function POST(request: Request) {
   try {
-    const { imageBase64, maskBase64, editPrompt, width, height } = await request.json();
+    console.log("🔵 Iniciando edición local con FAL...");
+
+    const body = await request.json();
+    const { imageBase64, maskBase64, editPrompt, width, height } = body;
+
+    console.log("📦 Datos recibidos:", {
+      hasImage: !!imageBase64,
+      hasMask: !!maskBase64,
+      prompt: editPrompt,
+      dimensions: `${width}x${height}`,
+    });
 
     if (!imageBase64 || !maskBase64 || !editPrompt) {
       return NextResponse.json(
         { success: false, error: "Faltan parámetros requeridos" },
         { status: 400 }
+      );
+    }
+
+    if (!FAL_KEY) {
+      return NextResponse.json(
+        { success: false, error: "FAL_KEY no configurada" },
+        { status: 500 }
       );
     }
 
@@ -19,29 +36,43 @@ export async function POST(request: Request) {
     const maskDataUrl = `data:image/png;base64,${maskBase64}`;
 
     // FLUX Dev con inpainting
+    const requestBody = {
+      image_url: imageDataUrl,
+      mask_url: maskDataUrl,
+      prompt: editPrompt,
+      strength: 0.95,
+      num_inference_steps: 28,
+      guidance_scale: 3.5,
+      num_images: 1,
+      enable_safety_checker: false,
+      sync_mode: true,
+    };
+
+    console.log("📡 Llamando a FAL API...");
+
     const response = await fetch("https://fal.run/fal-ai/flux/dev/image-to-image", {
       method: "POST",
       headers: {
         "Authorization": `Key ${FAL_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        image_url: imageDataUrl,
-        mask_url: maskDataUrl,
-        prompt: editPrompt,
-        strength: 0.95,
-        num_inference_steps: 28,
-        guidance_scale: 3.5,
-        num_images: 1,
-        enable_safety_checker: false,
-        sync_mode: true,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
+    console.log("📥 Respuesta FAL status:", response.status);
+
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error("❌ Error de FAL:", errorData);
-      throw new Error(errorData.detail || errorData.error || "Error en FAL API");
+      const errorText = await response.text();
+      console.error("❌ Error de FAL:", errorText);
+      
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        errorData = { error: errorText };
+      }
+
+      throw new Error(errorData.detail || errorData.error || `HTTP ${response.status}`);
     }
 
     const data = await response.json();
