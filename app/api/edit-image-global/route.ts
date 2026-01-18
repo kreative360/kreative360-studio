@@ -31,8 +31,8 @@ export async function POST(request: Request) {
       },
     ];
 
-    // Llamada simplificada - igual que lib/gemini.js
-    const result = await model.generateContent([{ role: "user", parts }]);
+    // Llamada directa con array de parts (forma más simple)
+    const result = await model.generateContent(parts);
 
     // Extraer imagen
     const img = result.response?.candidates?.[0]?.content?.parts?.find(
