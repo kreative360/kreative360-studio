@@ -13,6 +13,7 @@ type ProjectImage = {
   asin?: string;
   index?: number;
   url?: string;
+  base64?: string; // 🆕 AÑADIDO
   validation_status?: "pending" | "approved" | "rejected";
   original_image_url?: string;
   prompt_used?: string;
@@ -264,11 +265,12 @@ export default function ProjectPage() {
         currentImage: {
           ...currentImg,
           url: newUrl,
+          base64: newImage.base64, // 🆕 Guardar base64
           prompt_used: promptToUse,
         },
         imagesInReference: reviewModal.imagesInReference.map(img =>
           img.id === currentImg.id
-            ? { ...img, url: newUrl, prompt_used: promptToUse }
+            ? { ...img, url: newUrl, base64: newImage.base64, prompt_used: promptToUse }
             : img
         ),
       });
@@ -277,7 +279,7 @@ export default function ProjectPage() {
       setImages(prev =>
         prev.map(img =>
           img.id === currentImg.id
-            ? { ...img, url: newUrl, prompt_used: promptToUse }
+            ? { ...img, url: newUrl, base64: newImage.base64, prompt_used: promptToUse }
             : img
         )
       );
@@ -308,18 +310,18 @@ export default function ProjectPage() {
       const data = await res.json();
       const newUrl = data.url + "?t=" + Date.now();
       
-      // Actualizar estado de imágenes
+      // 🔧 Actualizar estado de imágenes CON base64
       setImages(prev => prev.map(img => 
-        img.id === editorImageId ? { ...img, url: newUrl } : img
+        img.id === editorImageId ? { ...img, url: newUrl, base64 } : img
       ));
       
       // Actualizar modal de revisión si está abierto
       if (reviewModal && reviewModal.currentImage?.id === editorImageId) {
         setReviewModal({
           ...reviewModal,
-          currentImage: { ...reviewModal.currentImage, url: newUrl },
+          currentImage: { ...reviewModal.currentImage, url: newUrl, base64 },
           imagesInReference: reviewModal.imagesInReference.map(img =>
-            img.id === editorImageId ? { ...img, url: newUrl } : img
+            img.id === editorImageId ? { ...img, url: newUrl, base64 } : img
           ),
         });
       }
@@ -1090,7 +1092,7 @@ export default function ProjectPage() {
             <button
               onClick={() => {
                 if (reviewModal?.currentImage) {
-                  setEditorImageUrl(reviewModal.currentImage.url);
+                  setEditorImageUrl(reviewModal.currentImage.url || "");
                   setEditorImageId(reviewModal.currentImage.id);
                   setShowEditor(true);
                 }
@@ -1228,9 +1230,14 @@ export default function ProjectPage() {
         </div>
       )}
 
+      {/* 🔧 EDITOR - CORREGIDO */}
       {showEditor && (
         <ImageEditor
-          imageUrl={editorImageUrl}
+          imageUrl={
+            images.find(img => img.id === editorImageId)?.base64
+              ? `data:image/jpeg;base64,${images.find(img => img.id === editorImageId)?.base64}`
+              : editorImageUrl
+          }
           onSave={handleSaveEdit}
           onCancel={() => setShowEditor(false)}
         />
