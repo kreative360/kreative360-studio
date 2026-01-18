@@ -1,20 +1,14 @@
 import { NextResponse } from "next/server";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const FAL_KEY = process.env.FAL_KEY;
+const API_KEY = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+const genAI = new GoogleGenerativeAI(API_KEY!);
 
 export async function POST(request: Request) {
   try {
-    console.log("🔵 Iniciando edición local con FAL...");
+    console.log("🎨 Iniciando edición local con Gemini...");
 
-    const body = await request.json();
-    const { imageBase64, maskBase64, editPrompt, width, height } = body;
-
-    console.log("📦 Datos recibidos:", {
-      hasImage: !!imageBase64,
-      hasMask: !!maskBase64,
-      prompt: editPrompt,
-      dimensions: `${width}x${height}`,
-    });
+    const { imageBase64, maskBase64, editPrompt, width, height } = await request.json();
 
     if (!imageBase64 || !maskBase64 || !editPrompt) {
       return NextResponse.json(
@@ -23,86 +17,79 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!FAL_KEY) {
+    console.log("📦 Datos recibidos:", {
+      hasImage: !!imageBase64,
+      hasMask: !!maskBase64,
+      prompt: editPrompt,
+    });
+
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash-image",
+    });
+
+    // ✨ CLAVE: Prompt mejorado igual que la herramienta original
+    const enhancedPrompt = `Edit this image: ${editPrompt}
+
+IMPORTANT RULES:
+- Only modify the areas marked in white in the mask
+- Keep everything else EXACTLY the same
+- Maintain the same composition, lighting, and perspective
+- The mask indicates where to apply changes
+- Areas in black in the mask should remain untouched`;
+
+    const parts: any = [
+      { text: enhancedPrompt },
+      {
+        inlineData: {
+          data: imageBase64,
+          mimeType: "image/jpeg",
+        },
+      },
+      {
+        inlineData: {
+          data: maskBase64,
+          mimeType: "image/png",
+        },
+      },
+    ];
+
+    console.log("🔮 Generando con Gemini...");
+
+    // ✨ CLAVE: Usar generateContent con configuración específica
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts }],
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 8192,
+      },
+    } as any);
+
+    const img = result.response?.candidates?.[0]?.content?.parts?.find(
+      (p: any) => p.inlineData && p.inlineData.mimeType.startsWith("image/")
+    );
+
+    if (!img) {
+      console.error("❌ No se generó imagen");
       return NextResponse.json(
-        { success: false, error: "FAL_KEY no configurada" },
+        { success: false, error: "No se generó imagen editada" },
         { status: 500 }
       );
     }
 
-    console.log("🎨 Editando con FAL (Local/Inpainting):", editPrompt);
-
-    const imageDataUrl = `data:image/jpeg;base64,${imageBase64}`;
-    const maskDataUrl = `data:image/png;base64,${maskBase64}`;
-
-    // FLUX Dev con inpainting
-    const requestBody = {
-      image_url: imageDataUrl,
-      mask_url: maskDataUrl,
-      prompt: editPrompt,
-      strength: 0.95,
-      num_inference_steps: 28,
-      guidance_scale: 3.5,
-      num_images: 1,
-      enable_safety_checker: false,
-      sync_mode: true,
-    };
-
-    console.log("📡 Llamando a FAL API...");
-
-    const response = await fetch("https://fal.run/fal-ai/flux/dev/image-to-image", {
-      method: "POST",
-      headers: {
-        "Authorization": `Key ${FAL_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    console.log("📥 Respuesta FAL status:", response.status);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("❌ Error de FAL:", errorText);
-      
-      let errorData;
-      try {
-        errorData = JSON.parse(errorText);
-      } catch {
-        errorData = { error: errorText };
-      }
-
-      throw new Error(errorData.detail || errorData.error || `HTTP ${response.status}`);
-    }
-
-    const data = await response.json();
-    console.log("✅ Respuesta de FAL:", data);
-
-    const imageUrl = data.images?.[0]?.url || data.image?.url;
-
-    if (!imageUrl) {
-      console.error("❌ No se generó imagen:", data);
-      throw new Error("No se generó imagen");
-    }
-
-    console.log("📥 Descargando imagen editada...");
-    const imageResponse = await fetch(imageUrl);
-    
-    if (!imageResponse.ok) {
-      throw new Error("Error descargando imagen generada");
-    }
-
-    const imageBuffer = await imageResponse.arrayBuffer();
-    const imageBase64Result = Buffer.from(imageBuffer).toString("base64");
-
-    console.log("✅ Imagen editada correctamente con FAL");
+    console.log("✅ Imagen editada correctamente");
 
     return NextResponse.json({
       success: true,
       image: {
-        base64: imageBase64Result,
+        base64: img.inlineData.data,
         width,
         height,
+      },
+      metadata: {
+        model: "gemini-2.5-flash-image",
+        prompt: enhancedPrompt,
+        originalPrompt: editPrompt,
+        hasMask: true,
       },
     });
 
