@@ -169,7 +169,6 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
     const imageData = ctx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
     const data = imageData.data;
     
-    // Buscar píxeles que no sean negros (RGBA: no todos en 0)
     for (let i = 0; i < data.length; i += 4) {
       if (data[i] > 10 || data[i + 1] > 10 || data[i + 2] > 10) {
         return true;
@@ -193,14 +192,13 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
       
       const imageBase64 = canvas.toDataURL("image/jpeg", 0.95).split(",")[1];
       
-      // Detectar automáticamente el modo
       const isLocalEdit = hasPaintedArea();
       
       let apiEndpoint: string;
       let bodyData: any;
 
       if (isLocalEdit) {
-        console.log("🎨 Edición LOCAL detectada (hay área pintada)");
+        console.log("🎨 Edición LOCAL detectada");
         const maskCanvas = maskCanvasRef.current;
         if (!maskCanvas) throw new Error("Mask canvas no disponible");
         
@@ -215,7 +213,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
           height: canvas.height,
         };
       } else {
-        console.log("🌍 Edición GLOBAL detectada (sin área pintada)");
+        console.log("🌍 Edición GLOBAL detectada");
         apiEndpoint = "/api/edit-image-global";
         bodyData = {
           imageBase64,
@@ -224,8 +222,6 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
           height: canvas.height,
         };
       }
-
-      console.log(`📡 Llamando a ${apiEndpoint}...`);
 
       const response = await fetch(apiEndpoint, {
         method: "POST",
@@ -255,7 +251,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0,0,0,0.95)",
+        background: "rgba(0,0,0,0.9)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -265,107 +261,63 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
       <div
         style={{
           background: "#fff",
-          borderRadius: 16,
-          padding: 32,
-          maxWidth: "90vw",
+          borderRadius: 12,
+          width: "90vw",
+          maxWidth: 1100,
           maxHeight: "90vh",
           display: "flex",
           flexDirection: "column",
-          gap: 20,
-          color: "#000",
         }}
       >
         {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>✏️ Editar imagen</h3>
+        <div
+          style={{
+            padding: "20px 24px",
+            borderBottom: "1px solid #e5e5e5",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "#333" }}>
+            Editar imagen
+          </h3>
           <button
             onClick={onCancel}
             style={{
               background: "transparent",
               border: "none",
-              fontSize: 24,
+              fontSize: 20,
               cursor: "pointer",
-              padding: 0,
+              padding: 4,
+              color: "#666",
             }}
           >
             ✕
           </button>
         </div>
 
-        {/* Contenido principal */}
-        <div style={{ display: "flex", gap: 20 }}>
-          {/* Panel izquierdo - Herramientas */}
+        {/* Contenido */}
+        <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+          {/* Lado izquierdo - Canvas */}
           <div
             style={{
-              width: 150,
+              flex: "0 0 60%",
+              padding: 24,
               display: "flex",
               flexDirection: "column",
               gap: 16,
             }}
           >
+            {/* Canvas container */}
             <div
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "8px 12px",
-                background: "#f0f0f0",
-                borderRadius: 8,
-                cursor: "pointer",
-              }}
-            >
-              <span style={{ fontSize: 18 }}>✏️</span>
-              <span style={{ fontSize: 14, fontWeight: 500 }}>Pincel</span>
-            </div>
-
-            <div>
-              <p style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>
-                Tamaño
-              </p>
-              <input
-                type="range"
-                min="5"
-                max="100"
-                value={brushSize}
-                onChange={(e) => setBrushSize(Number(e.target.value))}
-                style={{ width: "100%" }}
-              />
-              <p style={{ fontSize: 12, textAlign: "center", margin: "4px 0 0 0" }}>
-                {brushSize}
-              </p>
-            </div>
-
-            <button
-              onClick={clearMask}
-              style={{
-                padding: "8px 12px",
-                background: "transparent",
-                border: "1px solid #ddd",
-                borderRadius: 8,
-                cursor: "pointer",
-                fontSize: 13,
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-              }}
-            >
-              <span>🔄</span>
-              <span>Restablecer</span>
-            </button>
-          </div>
-
-          {/* Panel central - Canvas + Prompt */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {/* Canvas */}
-            <div
-              style={{
+                flex: 1,
                 position: "relative",
-                width: 600,
-                height: 450,
-                border: "2px solid #e0e0e0",
-                borderRadius: 12,
+                border: "1px solid #e5e5e5",
+                borderRadius: 8,
                 overflow: "hidden",
-                background: "#f5f5f5",
+                background: "#f9f9f9",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -407,57 +359,135 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
               />
 
               {isLoading && (
-                <div style={{ textAlign: "center", zIndex: 10 }}>
-                  <div style={{ marginBottom: 16 }}>⏳ Cargando imagen...</div>
+                <div style={{ textAlign: "center", zIndex: 10, color: "#666" }}>
+                  ⏳ Cargando imagen...
                 </div>
               )}
               
               {loadError && (
                 <div style={{ color: "#ef4444", textAlign: "center", padding: 20, zIndex: 10 }}>
                   <div style={{ marginBottom: 16 }}>❌ {loadError}</div>
-                  <button
-                    onClick={() => window.location.reload()}
-                    style={{
-                      padding: "8px 16px",
-                      background: "#3b82f6",
-                      border: "none",
-                      borderRadius: 8,
-                      color: "#fff",
-                      cursor: "pointer",
-                    }}
-                  >
-                    🔄 Reintentar
-                  </button>
                 </div>
               )}
             </div>
 
-            {/* Instrucciones */}
+            {/* Barra de herramientas inferior */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 16,
+                padding: "12px 16px",
+                background: "#f5f5f5",
+                borderRadius: 8,
+              }}
+            >
+              <button
+                style={{
+                  padding: "8px 16px",
+                  background: "#2c2c2c",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                ✏️ Pincel
+              </button>
+
+              <button
+                onClick={clearMask}
+                style={{
+                  padding: "8px 16px",
+                  background: "transparent",
+                  color: "#666",
+                  border: "none",
+                  borderRadius: 6,
+                  fontSize: 13,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                🔄 Borrador
+              </button>
+
+              <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ fontSize: 12, color: "#666" }}>Tamaño</span>
+                <input
+                  type="range"
+                  min="5"
+                  max="100"
+                  value={brushSize}
+                  onChange={(e) => setBrushSize(Number(e.target.value))}
+                  style={{ flex: 1 }}
+                />
+                <span style={{ fontSize: 12, color: "#666", minWidth: 30 }}>{brushSize}</span>
+              </div>
+
+              <button
+                style={{
+                  padding: "6px 12px",
+                  background: "transparent",
+                  border: "1px solid #ddd",
+                  borderRadius: 6,
+                  fontSize: 12,
+                  cursor: "pointer",
+                  color: "#666",
+                }}
+              >
+                🔄
+              </button>
+            </div>
+          </div>
+
+          {/* Lado derecho - Instrucciones */}
+          <div
+            style={{
+              flex: "0 0 40%",
+              padding: 24,
+              background: "#fef6f5",
+              display: "flex",
+              flexDirection: "column",
+              gap: 20,
+            }}
+          >
             <div>
-              <p style={{ fontSize: 13, opacity: 0.7, marginBottom: 8 }}>
+              <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: "#333" }}>
                 Instrucciones
               </p>
               <textarea
                 value={editPrompt}
                 onChange={(e) => setEditPrompt(e.target.value)}
-                placeholder="Describe los cambios que quieres hacer..."
+                placeholder="Describe los cambios que quieres hacer...
+
+Ejemplo: 'Cambia el color del producto a azul'"
                 style={{
                   width: "100%",
-                  height: 80,
+                  height: 200,
                   padding: 12,
-                  background: "#f5f5f5",
-                  border: "1px solid #e0e0e0",
+                  background: "#fff",
+                  border: "1px solid #e5e5e5",
                   borderRadius: 8,
-                  fontSize: 14,
+                  fontSize: 13,
                   fontFamily: "inherit",
                   resize: "none",
+                  color: "#333",
                 }}
                 maxLength={500}
               />
-              <p style={{ fontSize: 11, opacity: 0.5, textAlign: "right", margin: "4px 0 0 0" }}>
+              <p style={{ fontSize: 11, color: "#999", textAlign: "right", margin: "8px 0 0 0" }}>
                 {editPrompt.length}/500
               </p>
             </div>
+
+            <div style={{ flex: 1 }} />
 
             {/* Botones */}
             <div style={{ display: "flex", gap: 12 }}>
@@ -467,11 +497,12 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
                   flex: 1,
                   padding: "12px",
                   background: "transparent",
-                  border: "1px solid #e0e0e0",
-                  borderRadius: 10,
+                  border: "1px solid #ddd",
+                  borderRadius: 8,
                   cursor: "pointer",
-                  fontSize: 15,
+                  fontSize: 14,
                   fontWeight: 500,
+                  color: "#666",
                 }}
               >
                 Cancelar
@@ -482,16 +513,16 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
                 style={{
                   flex: 1,
                   padding: "12px",
-                  background: isProcessing || isLoading ? "#ccc" : "#000",
+                  background: isProcessing || isLoading ? "#ccc" : "#2c2c2c",
                   border: "none",
-                  borderRadius: 10,
+                  borderRadius: 8,
                   color: "#fff",
-                  fontSize: 15,
+                  fontSize: 14,
                   fontWeight: 600,
                   cursor: isProcessing || isLoading ? "not-allowed" : "pointer",
                 }}
               >
-                {isProcessing ? "⏳ Generando..." : "Generar"}
+                {isProcessing ? "Generando..." : "Generar"}
               </button>
             </div>
           </div>
