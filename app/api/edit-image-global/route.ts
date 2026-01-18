@@ -17,12 +17,10 @@ export async function POST(request: Request) {
 
     console.log("🎨 Editando con Gemini (Global):", editPrompt);
 
-    // ← CAMBIO AQUÍ: Usar el modelo correcto
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash-image",
     });
 
-    // ← CAMBIO AQUÍ: Estructura igual que lib/gemini.js
     const parts = [
       { text: editPrompt },
       {
@@ -33,17 +31,12 @@ export async function POST(request: Request) {
       },
     ];
 
-    // ← CAMBIO AQUÍ: Usar generateContent con la estructura correcta
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts }],
-      generationConfig: {
-        maxOutputTokens: 2048,
-      },
-    });
+    // Llamada simplificada - igual que lib/gemini.js
+    const result = await model.generateContent([{ role: "user", parts }]);
 
-    // ← CAMBIO AQUÍ: Extraer imagen igual que lib/gemini.js
+    // Extraer imagen
     const img = result.response?.candidates?.[0]?.content?.parts?.find(
-      (p) => p.inlineData && p.inlineData.mimeType.startsWith("image/")
+      (p: any) => p.inlineData && p.inlineData.mimeType.startsWith("image/")
     );
 
     if (!img) {
