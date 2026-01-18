@@ -13,7 +13,6 @@ type ProjectImage = {
   asin?: string;
   index?: number;
   url?: string;
-  base64?: string; // 🆕 AÑADIDO: Para almacenar versión editada
   validation_status?: "pending" | "approved" | "rejected";
   original_image_url?: string;
   prompt_used?: string;
@@ -240,16 +239,14 @@ export default function ProjectPage() {
 
       // 🔧 PASO 3: Actualizar la imagen existente (REEMPLAZAR)
       const newImage = data.images[0];
-      const newBase64 = newImage.base64;
-      const newDataUrl = `data:${newImage.mime};base64,${newBase64}`;
-
-      const updateRes = await fetch("/api/projects/images/update", {
+      const updateRes = await fetch("/api/projects/update-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           imageId: currentImg.id,
-          newImageBase64: newBase64,
-          prompt: promptToUse,
+          base64: newImage.base64,
+          mime: newImage.mime || "image/jpeg",
+          promptUsed: promptToUse,
         }),
       });
 
@@ -259,31 +256,34 @@ export default function ProjectPage() {
         throw new Error("Error actualizando imagen");
       }
 
-      // 🔧 PASO 4: Actualizar el estado local
-      const updatedImage = {
-        ...currentImg,
-        url: updateData.url,
-        base64: newBase64, // 🆕 Guardar base64
-        prompt_used: promptToUse,
-      };
+      // 🔧 PASO 4: Actualizar imagen en el modal SIN CERRAR
+      const newUrl = `${updateData.url}?t=${Date.now()}`;
+      
+      setReviewModal({
+        ...reviewModal,
+        currentImage: {
+          ...currentImg,
+          url: newUrl,
+          prompt_used: promptToUse,
+        },
+        imagesInReference: reviewModal.imagesInReference.map(img =>
+          img.id === currentImg.id
+            ? { ...img, url: newUrl, prompt_used: promptToUse }
+            : img
+        ),
+      });
 
-      setImages((prev) =>
-        prev.map((img) => (img.id === currentImg.id ? updatedImage : img))
+      // 🔧 PASO 5: Actualizar estado global
+      setImages(prev =>
+        prev.map(img =>
+          img.id === currentImg.id
+            ? { ...img, url: newUrl, prompt_used: promptToUse }
+            : img
+        )
       );
 
-      setReviewModal((prev) =>
-        prev
-          ? {
-              ...prev,
-              currentImage: updatedImage,
-              imagesInReference: prev.imagesInReference.map((img) =>
-                img.id === currentImg.id ? updatedImage : img
-              ),
-            }
-          : null
-      );
+      alert("✅ Imagen regenerada exitosamente");
 
-      alert("✅ Imagen regenerada correctamente");
     } catch (error: any) {
       console.error("Error regenerando:", error);
       alert("❌ Error: " + error.message);
@@ -292,598 +292,718 @@ export default function ProjectPage() {
     }
   };
 
-  /* ======================================================
-     🆕 FUNCIÓN PARA GUARDAR EDICIÓN
-  ====================================================== */
-  const handleSaveEdit = async (editedImageBase64: string) => {
-    if (!editorImageId) return;
-
+  const handleSaveEdit = async (base64: string) => {
     try {
-      const res = await fetch("/api/projects/images/update", {
+      const res = await fetch("/api/projects/update-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          imageId: editorImageId,
-          newImageBase64: editedImageBase64,
-          prompt: "Editado con IA",
+        body: JSON.stringify({ 
+          imageId: editorImageId, 
+          base64, 
+          mime: "image/jpeg", 
+          promptUsed: "Editado con IA" 
         }),
       });
-
+      if (!res.ok) throw new Error("Error al actualizar");
       const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        throw new Error("Error guardando imagen editada");
-      }
-
-      // 🔧 Actualizar el estado local CON base64
-      setImages((prev) =>
-        prev.map((img) =>
-          img.id === editorImageId
-            ? { ...img, url: data.url, base64: editedImageBase64 }
-            : img
-        )
-      );
-
-      // Si el modal de revisión está abierto, actualizarlo también
+      const newUrl = data.url + "?t=" + Date.now();
+      
+      // Actualizar estado de imágenes
+      setImages(prev => prev.map(img => 
+        img.id === editorImageId ? { ...img, url: newUrl } : img
+      ));
+      
+      // Actualizar modal de revisión si está abierto
       if (reviewModal && reviewModal.currentImage?.id === editorImageId) {
         setReviewModal({
           ...reviewModal,
-          currentImage: {
-            ...reviewModal.currentImage,
-            url: data.url,
-            base64: editedImageBase64, // 🔧 AÑADIDO
-          },
-          imagesInReference: reviewModal.imagesInReference.map((img) =>
-            img.id === editorImageId ? { ...img, url: data.url, base64: editedImageBase64 } : img
+          currentImage: { ...reviewModal.currentImage, url: newUrl },
+          imagesInReference: reviewModal.imagesInReference.map(img =>
+            img.id === editorImageId ? { ...img, url: newUrl } : img
           ),
         });
       }
-
+      
       setShowEditor(false);
-      alert("✅ Imagen editada correctamente");
-    } catch (error: any) {
-      console.error("Error guardando edición:", error);
-      alert("❌ Error: " + error.message);
+    } catch (error) {
+      console.error("Error:", error);
+      alert("Error al guardar la edición");
     }
   };
+
+  // 🆕 Listener de ESC key
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && reviewModal?.open) {
+        setReviewModal(null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [reviewModal]);
 
   /* ======================================================
-     SELECCIÓN Y DESCARGA
+     FILTRADO POR VALIDACIÓN
   ====================================================== */
-  const toggleSelect = (id: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
-
-  const selectAll = () => {
-    setSelected(new Set(images.map((i) => i.id)));
-  };
-
-  const deselectAll = () => {
-    setSelected(new Set());
-  };
-
-  const downloadSelected = async () => {
-    const selectedImages = images.filter((img) => selected.has(img.id));
-    if (selectedImages.length === 0) {
-      alert("Selecciona al menos una imagen");
-      return;
-    }
-
-    setDownloading(true);
-    setDownloadPart(0);
-    setDownloadTotal(selectedImages.length);
-
-    try {
-      const chunks: ProjectImage[][] = [];
-      for (let i = 0; i < selectedImages.length; i += CHUNK_SIZE) {
-        chunks.push(selectedImages.slice(i, i + CHUNK_SIZE));
-      }
-
-      for (let chunkIdx = 0; chunkIdx < chunks.length; chunkIdx++) {
-        const chunk = chunks[chunkIdx];
-        const res = await fetch("/api/download", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ images: chunk, projectId }),
-        });
-
-        if (!res.ok) {
-          throw new Error("Error generando ZIP");
-        }
-
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `images_part${chunkIdx + 1}_of_${chunks.length}.zip`;
-        a.click();
-        URL.revokeObjectURL(url);
-
-        setDownloadPart(chunkIdx + 1);
-      }
-
-      alert("✅ Descarga completada");
-    } catch (err) {
-      console.error("Error descargando:", err);
-      alert("❌ Error al descargar imágenes");
-    } finally {
-      setDownloading(false);
-      setDownloadPart(0);
-      setDownloadTotal(0);
-    }
-  };
-
-  /* ======================================================
-     FILTROS Y ORDEN
-  ====================================================== */
-  const sortedImages = [...images].sort((a, b) => {
-    if (order === "newest") {
-      return (b.index || 0) - (a.index || 0);
-    }
-    return (a.index || 0) - (b.index || 0);
-  });
-
-  const filteredImages = sortedImages.filter((img) => {
+  const filteredImages = images.filter((img) => {
     if (validationFilter === "all") return true;
     return img.validation_status === validationFilter;
   });
 
-  const groupedImages: { [key: string]: ProjectImage[] } = {};
-  filteredImages.forEach((img) => {
-    const ref = img.reference || "Sin referencia";
-    if (!groupedImages[ref]) {
-      groupedImages[ref] = [];
-    }
-    groupedImages[ref].push(img);
-  });
+  const displayedImages =
+    order === "oldest" ? filteredImages : [...filteredImages].reverse();
 
   /* ======================================================
-     🆕 FUNCIÓN PARA MANEJAR ZOOM/LUPA
+     SELECCIÓN (ORIGINAL)
   ====================================================== */
-  const handleMouseMove = (
-    e: React.MouseEvent<HTMLImageElement>,
-    imageSrc: string
-  ) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const xPercent = (x / rect.width) * 100;
-    const yPercent = (y / rect.height) * 100;
-    setZoomImage({
-      src: imageSrc,
-      x: e.clientX,
-      y: e.clientY,
-      xPercent,
-      yPercent,
+  const selectAll = () =>
+    setSelected(new Set(displayedImages.map((img) => img.id)));
+
+  const deselectAll = () => setSelected(new Set());
+
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
     });
   };
 
-  const handleMouseLeave = () => {
-    setZoomImage(null);
+  const toggleRowSelect = (rowIndex: number) => {
+    const start = rowIndex * IMAGES_PER_ROW;
+    const rowImages = displayedImages.slice(start, start + IMAGES_PER_ROW);
+
+    setSelected((prev) => {
+      const next = new Set(prev);
+      const allSelected = rowImages.every((img) => next.has(img.id));
+      rowImages.forEach((img) =>
+        allSelected ? next.delete(img.id) : next.add(img.id)
+      );
+      return next;
+    });
+  };
+
+  const toggleTwoRowsSelect = (rowIndex: number) => {
+    const start = rowIndex * IMAGES_PER_ROW;
+    const twoRowsImages = displayedImages.slice(
+      start,
+      start + IMAGES_PER_ROW * 2
+    );
+
+    setSelected((prev) => {
+      const next = new Set(prev);
+      const allSelected = twoRowsImages.every((img) => next.has(img.id));
+      twoRowsImages.forEach((img) =>
+        allSelected ? next.delete(img.id) : next.add(img.id)
+      );
+      return next;
+    });
   };
 
   /* ======================================================
-     RENDER
+     DESCARGA ZIP (ORIGINAL)
   ====================================================== */
-  if (loading) {
-    return (
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          height: "100vh",
-          color: "#fff",
-        }}
-      >
-        Cargando proyecto...
-      </div>
-    );
-  }
+  const downloadZip = async (mode: "reference" | "asin") => {
+    if (selected.size === 0) {
+      alert("Selecciona al menos una imagen");
+      return;
+    }
 
+    const ids = Array.from(selected);
+    const totalParts = Math.ceil(ids.length / CHUNK_SIZE);
+
+    setDownloading(true);
+    setDownloadTotal(totalParts);
+
+    for (let part = 0; part < totalParts; part++) {
+      setDownloadPart(part + 1);
+
+      const chunk = ids.slice(
+        part * CHUNK_SIZE,
+        (part + 1) * CHUNK_SIZE
+      );
+
+      const res = await fetch("/api/projects/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: chunk, mode }),
+      });
+
+      if (!res.ok) {
+        alert(`Error generando ZIP (parte ${part + 1})`);
+        setDownloading(false);
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `imagenes_${mode}_part${part + 1}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      window.URL.revokeObjectURL(url);
+      await new Promise((r) => setTimeout(r, 300));
+    }
+
+    setDownloading(false);
+    setDownloadPart(0);
+    setDownloadTotal(0);
+  };
+
+  const deleteImages = async () => {
+    if (selected.size === 0) return;
+
+    const ok = confirm(
+      "¿Estás seguro que deseas eliminar las imágenes seleccionadas?"
+    );
+    if (!ok) return;
+
+    const res = await fetch("/api/projects/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: Array.from(selected) }),
+    });
+
+    if (!res.ok) {
+      alert("Error eliminando imágenes");
+      return;
+    }
+
+    await loadImages();
+  };
+
+  /* ======================================================
+     ESTADÍSTICAS DE VALIDACIÓN
+  ====================================================== */
+  const stats = {
+    total: images.length,
+    pending: images.filter((img) => img.validation_status === "pending").length,
+    approved: images.filter((img) => img.validation_status === "approved").length,
+    rejected: images.filter((img) => img.validation_status === "rejected").length,
+  };
+
+  /* ======================================================
+     UI
+  ====================================================== */
   return (
-    <div style={{ padding: 32, color: "#fff" }}>
-      {/* HEADER */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          marginBottom: 24,
-          alignItems: "center",
-        }}
-      >
-        <h1 style={{ margin: 0 }}>Proyecto {projectId}</h1>
+    <div style={{ height: "100vh", background: "#fff", display: "flex" }}>
+      <div style={{ width: 22, background: "#ff6b6b" }} />
+
+      <div style={{ flex: 1, padding: "28px 36px", overflowY: "auto" }}>
         <button
           onClick={() => router.push("/projects")}
           style={{
-            background: "#ff6b6b",
-            color: "#fff",
+            marginBottom: 16,
+            background: "transparent",
             border: "none",
-            borderRadius: 8,
-            padding: "10px 20px",
-            fontSize: 15,
-            fontWeight: 600,
             cursor: "pointer",
-          }}
-        >
-          ← Volver
-        </button>
-      </div>
-
-      {/* CONTROLES */}
-      <div
-        style={{
-          display: "flex",
-          gap: 12,
-          marginBottom: 24,
-          alignItems: "center",
-          flexWrap: "wrap",
-        }}
-      >
-        <button
-          onClick={selectAll}
-          style={{
-            background: "#3b82f6",
-            color: "#fff",
-            border: "none",
-            borderRadius: 6,
-            padding: "8px 16px",
             fontSize: 14,
-            cursor: "pointer",
+            opacity: 0.7,
           }}
         >
-          Seleccionar todas
-        </button>
-        <button
-          onClick={deselectAll}
-          style={{
-            background: "#6b7280",
-            color: "#fff",
-            border: "none",
-            borderRadius: 6,
-            padding: "8px 16px",
-            fontSize: 14,
-            cursor: "pointer",
-          }}
-        >
-          Deseleccionar todas
-        </button>
-        <button
-          onClick={downloadSelected}
-          disabled={downloading || selected.size === 0}
-          style={{
-            background: downloading || selected.size === 0 ? "#4b5563" : "#10b981",
-            color: "#fff",
-            border: "none",
-            borderRadius: 6,
-            padding: "8px 16px",
-            fontSize: 14,
-            cursor: downloading || selected.size === 0 ? "not-allowed" : "pointer",
-            opacity: downloading || selected.size === 0 ? 0.5 : 1,
-          }}
-        >
-          {downloading
-            ? `Descargando ${downloadPart}/${downloadTotal}...`
-            : `Descargar (${selected.size})`}
+          ← Volver a proyectos
         </button>
 
-        <select
-          value={order}
-          onChange={(e) => setOrder(e.target.value as "oldest" | "newest")}
+        <h1
           style={{
-            background: "#374151",
-            color: "#fff",
-            border: "1px solid #4b5563",
-            borderRadius: 6,
-            padding: "8px 12px",
-            fontSize: 14,
-            cursor: "pointer",
+            fontFamily: "DM Serif Display",
+            fontSize: 34,
+            textAlign: "center",
+            marginBottom: 6,
           }}
         >
-          <option value="oldest">Más antiguas primero</option>
-          <option value="newest">Más recientes primero</option>
-        </select>
+          Proyectos
+        </h1>
 
-        <select
-          value={validationFilter}
-          onChange={(e) => setValidationFilter(e.target.value as any)}
+        <p style={{ textAlign: "center", marginBottom: 12, opacity: 0.7 }}>
+          Imágenes en proyecto: {images.length}
+        </p>
+
+        {/* Estadísticas de validación */}
+        <div
           style={{
-            background: "#374151",
-            color: "#fff",
-            border: "1px solid #4b5563",
-            borderRadius: 6,
-            padding: "8px 12px",
-            fontSize: 14,
-            cursor: "pointer",
+            display: "flex",
+            justifyContent: "center",
+            gap: 16,
+            marginBottom: 18,
+            fontSize: 13,
           }}
         >
-          <option value="all">Todas</option>
-          <option value="pending">Pendientes</option>
-          <option value="approved">Aprobadas</option>
-          <option value="rejected">Rechazadas</option>
-        </select>
-      </div>
+          <span style={{ color: "#666" }}>
+            ⏳ Pendientes: <strong>{stats.pending}</strong>
+          </span>
+          <span style={{ color: "#10b981" }}>
+            ✅ Aprobadas: <strong>{stats.approved}</strong>
+          </span>
+          <span style={{ color: "#ef4444" }}>
+            ❌ Rechazadas: <strong>{stats.rejected}</strong>
+          </span>
+        </div>
 
-      {/* GALERÍA */}
-      {Object.entries(groupedImages).map(([ref, imgs]) => (
-        <div key={ref} style={{ marginBottom: 40 }}>
-          <h3
+        {downloading && (
+          <div style={{ maxWidth: 420, margin: "0 auto 20px" }}>
+            <p style={{ textAlign: "center", fontSize: 14 }}>
+              Descargando ZIP {downloadPart} de {downloadTotal}
+            </p>
+            <div
+              style={{
+                height: 8,
+                background: "#e0e0e0",
+                borderRadius: 6,
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  height: "100%",
+                  width: `${(downloadPart / downloadTotal) * 100}%`,
+                  background: "#ff6b6b",
+                  transition: "width 0.3s",
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Filtros de validación */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            gap: 8,
+            marginBottom: 16,
+            flexWrap: "wrap",
+          }}
+        >
+          {(["pending", "approved", "rejected", "all"] as const).map((filter) => (
+            <button
+              key={filter}
+              className="btn-zoom"
+              onClick={() => setValidationFilter(filter)}
+              style={{
+                borderRadius: 999,
+                padding: "6px 14px",
+                fontSize: 13,
+                background: validationFilter === filter ? "#ff6b6b" : "#f0f0f0",
+                color: validationFilter === filter ? "#fff" : "#333",
+                border: "none",
+              }}
+            >
+              {filter === "all" && "Todas"}
+              {filter === "pending" && "⏳ Pendientes"}
+              {filter === "approved" && "✅ Aprobadas"}
+              {filter === "rejected" && "❌ Rechazadas"}
+            </button>
+          ))}
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            gap: 12,
+            marginBottom: 28,
+            flexWrap: "wrap",
+          }}
+        >
+          <button className="btn-zoom" onClick={selectAll}
+            style={{ background: "#ff6b6b", color: "#fff", borderRadius: 999 }}>
+            Seleccionar todo
+          </button>
+
+          <button className="btn-zoom" onClick={deselectAll}
+            style={{ borderRadius: 999 }}>
+            Deseleccionar todo
+          </button>
+
+          <button className="btn-zoom"
+            onClick={() => downloadZip("reference")}
+            style={{ background: "#000", color: "#fff", borderRadius: 999 }}>
+            Descargar ZIP (Referencia)
+          </button>
+
+          <button className="btn-zoom"
+            onClick={() => downloadZip("asin")}
+            style={{ background: "#ff6b6b", color: "#fff", borderRadius: 999 }}>
+            Descargar ZIP (ASIN)
+          </button>
+
+          <button className="btn-zoom"
+            onClick={() => setOrder(order === "oldest" ? "newest" : "oldest")}
+            style={{ borderRadius: 999 }}>
+            Ordenar: {order === "oldest" ? "nuevas → viejas" : "viejas → nuevas"}
+          </button>
+
+          <button className="btn-zoom"
+            onClick={deleteImages}
+            disabled={selected.size === 0}
             style={{
-              fontSize: 16,
-              marginBottom: 12,
-              color: "#9ca3af",
-              fontWeight: 500,
-            }}
-          >
-            {ref} ({imgs.length} imagen{imgs.length !== 1 ? "es" : ""})
-          </h3>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: `repeat(${IMAGES_PER_ROW}, 1fr)`,
-              gap: 12,
-            }}
-          >
-            {imgs.map((img) => (
+              background: "#6b1d1d",
+              color: "#fff",
+              borderRadius: 999,
+              opacity: selected.size === 0 ? 0.5 : 1,
+            }}>
+            Eliminar
+          </button>
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(6, 1fr)",
+            gap: 18,
+          }}
+        >
+          {displayedImages.map((img, idx) => {
+            const rowIndex = Math.floor(idx / IMAGES_PER_ROW);
+            const isRowStart = idx % IMAGES_PER_ROW === 0;
+            const isTwoRowDivider = idx % (IMAGES_PER_ROW * 2) === 0;
+
+            return (
               <div
                 key={img.id}
                 style={{
+                  background: "#f2f2f2",
+                  borderRadius: 16,
+                  height: 240,
                   position: "relative",
-                  aspectRatio: "1",
-                  borderRadius: 8,
-                  overflow: "hidden",
-                  background: "#1f2937",
                   cursor: "pointer",
+                  boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+                  overflow: "hidden",
+                  border: img.validation_status === "approved" 
+                    ? "3px solid #10b981" 
+                    : img.validation_status === "rejected"
+                    ? "3px solid #ef4444"
+                    : "3px solid transparent",
                 }}
                 onClick={() => openReviewModal(img)}
               >
-                {img.url && (
-                  <img
-                    src={img.url}
-                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                    alt="Generated"
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 10,
+                    right: 10,
+                    width: 24,
+                    height: 24,
+                    borderRadius: "50%",
+                    background: 
+                      img.validation_status === "approved"
+                        ? "#10b981"
+                        : img.validation_status === "rejected"
+                        ? "#ef4444"
+                        : "#fbbf24",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 14,
+                    zIndex: 4,
+                  }}
+                >
+                  {img.validation_status === "approved" && "✓"}
+                  {img.validation_status === "rejected" && "✕"}
+                  {img.validation_status === "pending" && "⏳"}
+                </div>
+
+                {isRowStart && (
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleRowSelect(rowIndex);
+                    }}
+                    style={{
+                      position: "absolute",
+                      top: 40,
+                      left: 10,
+                      width: 18,
+                      height: 18,
+                      borderRadius: 4,
+                      background: "#fff",
+                      border: "1px solid #ccc",
+                      zIndex: 3,
+                    }}
                   />
                 )}
 
-                <input
-                  type="checkbox"
-                  checked={selected.has(img.id)}
-                  onChange={(e) => {
+                {isTwoRowDivider && (
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleTwoRowsSelect(rowIndex);
+                    }}
+                    style={{
+                      position: "absolute",
+                      top: 70,
+                      left: 10,
+                      width: 18,
+                      height: 18,
+                      borderRadius: 4,
+                      background: "#fff",
+                      border: "1px solid #ccc",
+                      zIndex: 3,
+                    }}
+                  />
+                )}
+
+                <div
+                  onClick={(e) => {
                     e.stopPropagation();
                     toggleSelect(img.id);
                   }}
                   style={{
                     position: "absolute",
-                    top: 8,
-                    left: 8,
-                    width: 20,
-                    height: 20,
-                    cursor: "pointer",
-                    accentColor: "#ff6b6b",
+                    top: 10,
+                    left: 10,
+                    width: 18,
+                    height: 18,
+                    borderRadius: 4,
+                    background: selected.has(img.id)
+                      ? "#ff6b6b"
+                      : "#fff",
+                    border: "1px solid #ccc",
+                    zIndex: 2,
                   }}
                 />
 
-                {img.validation_status !== "pending" && (
-                  <div
+                {img.url && (
+                  <img
+                    src={img.url}
                     style={{
-                      position: "absolute",
-                      top: 8,
-                      right: 8,
-                      width: 28,
-                      height: 28,
-                      borderRadius: "50%",
-                      background:
-                        img.validation_status === "approved" ? "#10b981" : "#ef4444",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 16,
-                      color: "#fff",
-                      fontWeight: "bold",
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
                     }}
-                  >
-                    {img.validation_status === "approved" ? "✓" : "✕"}
-                  </div>
+                  />
                 )}
+
+                <div
+                  style={{
+                    position: "absolute",
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    height: 32,
+                    background: "#6b6b6b",
+                    color: "#fff",
+                    fontSize: 12,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                  }}
+                >
+                  <span>{img.reference || "REF"}</span>
+                  <span>|</span>
+                  <span>{img.asin || "ASIN"}</span>
+                  <span>| #{img.index ?? idx + 1}</span>
+                </div>
               </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
-      ))}
+      </div>
 
-      {/* PREVIEW SIMPLE */}
-      {preview && (
-        <div
-          onClick={() => setPreview(null)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.9)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 9999,
-            cursor: "pointer",
-          }}
-        >
-          <img
-            src={preview}
-            style={{ maxWidth: "90%", maxHeight: "90%", borderRadius: 12 }}
-            alt="Preview"
-          />
-        </div>
-      )}
+      <div style={{ width: 22, background: "#ff6b6b" }} />
 
-      {/* 🆕 MODAL DE REVISIÓN COMPARATIVA */}
-      {reviewModal && reviewModal.currentImage && (
+      {/* 🆕 MODAL REDISEÑADO CON LAYOUT CORRECTO */}
+      {reviewModal?.open && (
         <div
           style={{
             position: "fixed",
             inset: 0,
             background: "rgba(0,0,0,0.95)",
-            zIndex: 10000,
             display: "flex",
             flexDirection: "column",
+            zIndex: 9999,
+            overflow: "auto",
           }}
         >
-          {/* HEADER */}
+          {/* Cabecera */}
           <div
             style={{
+              padding: "16px 20px",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
-              padding: "20px 32px",
-              borderBottom: "1px solid rgba(255,255,255,0.2)",
+              color: "#fff",
               flexShrink: 0,
             }}
           >
-            <h2 style={{ color: "#fff", margin: 0, fontSize: 20 }}>
-              Revisando: {reviewModal.currentImage.reference || "Sin referencia"}
-            </h2>
-            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-              <span style={{ color: "#9ca3af", fontSize: 14 }}>
-                Imagen {reviewModal.currentIndex + 1} de{" "}
-                {reviewModal.imagesInReference.length}
+            <h3 style={{ margin: 0, fontSize: 18 }}>
+              Revisando: {reviewModal.currentImage?.reference || "Sin referencia"}
+            </h3>
+            <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+              <span style={{ fontSize: 14 }}>
+                Imagen {reviewModal.currentIndex + 1} de {reviewModal.imagesInReference.length}
               </span>
               <button
                 onClick={() => setReviewModal(null)}
                 style={{
                   background: "transparent",
-                  border: "none",
+                  border: "2px solid #fff",
                   color: "#fff",
-                  fontSize: 28,
+                  borderRadius: 8,
+                  padding: "6px 14px",
                   cursor: "pointer",
-                  padding: "0 8px",
+                  fontSize: 14,
                 }}
               >
-                ✕
+                ✕ Cerrar
               </button>
             </div>
           </div>
 
-          {/* CONTENIDO PRINCIPAL */}
+          {/* IMÁGENES GRANDES */}
           <div
             style={{
-              flex: 1,
-              display: "flex",
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 20,
+              padding: "0 20px",
               alignItems: "center",
-              justifyContent: "center",
-              padding: "32px",
-              overflow: "hidden",
+              height: "calc(100vh - 240px)",
+              flexShrink: 0,
             }}
           >
-            {/* COLUMNAS */}
+            {/* Imagen Original con ZOOM */}
             <div
               style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: 32,
-                width: "100%",
-                maxWidth: 1600,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
                 height: "100%",
               }}
             >
-              {/* COLUMNA IZQUIERDA - IMAGEN ORIGINAL */}
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  height: "100%",
-                }}
-              >
-                <h3
-                  style={{
-                    color: "#9ca3af",
-                    fontSize: 14,
-                    marginBottom: 12,
-                    fontWeight: 500,
-                  }}
-                >
-                  Imagen Original
-                </h3>
+              <p style={{ color: "#fff", marginBottom: 10, fontSize: 13, opacity: 0.8 }}>
+                Imagen Original
+              </p>
+              {reviewModal.currentImage?.original_image_url ? (
                 <div
-                  style={{
-                    flex: 1,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: "#1f2937",
-                    borderRadius: 12,
-                    overflow: "hidden",
+                  style={{ position: "relative", display: "inline-block" }}
+                  onMouseMove={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const img = e.currentTarget.querySelector('img');
+                    if (img) {
+                      const imgRect = img.getBoundingClientRect();
+                      const x = e.clientX - imgRect.left;
+                      const y = e.clientY - imgRect.top;
+                      const xPercent = (x / imgRect.width) * 100;
+                      const yPercent = (y / imgRect.height) * 100;
+                      setZoomImage({
+                        src: reviewModal.currentImage!.original_image_url!,
+                        x: e.clientX,
+                        y: e.clientY,
+                        xPercent,
+                        yPercent,
+                      });
+                    }
                   }}
+                  onMouseLeave={() => setZoomImage(null)}
                 >
-                  {reviewModal.currentImage.original_image_url && (
-                    <img
-                      src={reviewModal.currentImage.original_image_url}
+                  <img
+                    src={reviewModal.currentImage.original_image_url}
+                    style={{
+                      maxWidth: "100%",
+                      maxHeight: "calc(100vh - 290px)",
+                      objectFit: "contain",
+                      borderRadius: 12,
+                      cursor: "crosshair",
+                      display: "block",
+                    }}
+                    alt="Original"
+                  />
+                  {zoomImage && zoomImage.src === reviewModal.currentImage.original_image_url && (
+                    <div
                       style={{
-                        maxWidth: "100%",
-                        maxHeight: "100%",
-                        objectFit: "contain",
-                        borderRadius: 12,
-                        display: "block",
+                        position: "fixed",
+                        left: zoomImage.x + 20,
+                        top: zoomImage.y + 20,
+                        width: 200,
+                        height: 200,
+                        border: "3px solid #fff",
+                        borderRadius: 8,
+                        overflow: "hidden",
+                        pointerEvents: "none",
+                        background: "#000",
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.8)",
+                        zIndex: 10000,
+                        backgroundImage: `url(${zoomImage.src})`,
+                        backgroundSize: "400%",
+                        backgroundPosition: `${zoomImage.xPercent}% ${zoomImage.yPercent}%`,
                       }}
-                      alt="Original"
                     />
                   )}
                 </div>
-              </div>
-
-              {/* COLUMNA DERECHA - IMAGEN GENERADA */}
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  height: "100%",
-                }}
-              >
-                <h3
-                  style={{
-                    color: "#9ca3af",
-                    fontSize: 14,
-                    marginBottom: 12,
-                    fontWeight: 500,
-                  }}
-                >
-                  Imagen Generada
-                </h3>
+              ) : (
                 <div
                   style={{
-                    flex: 1,
+                    width: "80%",
+                    height: "60%",
+                    background: "#333",
+                    borderRadius: 12,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    background: "#1f2937",
-                    borderRadius: 12,
-                    overflow: "hidden",
-                    position: "relative",
+                    color: "#999",
                   }}
                 >
-                  {reviewModal.currentImage.url && (
-                    <img
-                      src={reviewModal.currentImage.url}
-                      onMouseMove={(e) =>
-                        handleMouseMove(e, reviewModal.currentImage.url || "")
-                      }
-                      onMouseLeave={handleMouseLeave}
-                      style={{
-                        maxWidth: "100%",
-                        maxHeight: "100%",
-                        objectFit: "contain",
-                        borderRadius: 12,
-                        cursor: "crosshair",
-                        display: "block",
-                      }}
-                      alt="Generada"
-                    />
-                  )}
+                  Sin imagen original
+                </div>
+              )}
+            </div>
+
+            {/* Imagen Generada con ZOOM */}
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "100%",
+              }}
+            >
+              <p style={{ color: "#fff", marginBottom: 10, fontSize: 13, opacity: 0.8 }}>
+                Imagen Generada
+              </p>
+              {reviewModal.currentImage?.url && (
+                <div
+                  style={{ position: "relative", display: "inline-block" }}
+                  onMouseMove={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const img = e.currentTarget.querySelector('img');
+                    if (img) {
+                      const imgRect = img.getBoundingClientRect();
+                      const x = e.clientX - imgRect.left;
+                      const y = e.clientY - imgRect.top;
+                      const xPercent = (x / imgRect.width) * 100;
+                      const yPercent = (y / imgRect.height) * 100;
+                      setZoomImage({
+                        src: reviewModal.currentImage!.url!,
+                        x: e.clientX,
+                        y: e.clientY,
+                        xPercent,
+                        yPercent,
+                      });
+                    }
+                  }}
+                  onMouseLeave={() => setZoomImage(null)}
+                >
+                  <img
+                    src={reviewModal.currentImage.url}
+                    style={{
+                      maxWidth: "100%",
+                      maxHeight: "calc(100vh - 290px)",
+                      objectFit: "contain",
+                      borderRadius: 12,
+                      cursor: "crosshair",
+                      display: "block",
+                    }}
+                    alt="Generada"
+                  />
                   {zoomImage && zoomImage.src === reviewModal.currentImage.url && (
                     <div
                       style={{
@@ -906,7 +1026,7 @@ export default function ProjectPage() {
                     />
                   )}
                 </div>
-              </div>
+              )}
             </div>
           </div>
 
@@ -970,7 +1090,7 @@ export default function ProjectPage() {
             <button
               onClick={() => {
                 if (reviewModal?.currentImage) {
-                  setEditorImageUrl(reviewModal.currentImage.url || "");
+                  setEditorImageUrl(reviewModal.currentImage.url);
                   setEditorImageId(reviewModal.currentImage.id);
                   setShowEditor(true);
                 }
@@ -1108,14 +1228,9 @@ export default function ProjectPage() {
         </div>
       )}
 
-      {/* 🔧 EDITOR DE IMÁGENES - CORREGIDO */}
       {showEditor && (
         <ImageEditor
-          imageUrl={
-            images.find(img => img.id === editorImageId)?.base64
-              ? `data:image/jpeg;base64,${images.find(img => img.id === editorImageId)?.base64}`
-              : editorImageUrl
-          }
+          imageUrl={editorImageUrl}
           onSave={handleSaveEdit}
           onCancel={() => setShowEditor(false)}
         />
