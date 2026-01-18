@@ -18,7 +18,8 @@ export async function POST(request: Request) {
     const imageDataUrl = `data:image/jpeg;base64,${imageBase64}`;
     const maskDataUrl = `data:image/png;base64,${maskBase64}`;
 
-    const response = await fetch("https://fal.run/fal-ai/flux-pro/v1.1/redux", {
+    // FLUX Dev con inpainting
+    const response = await fetch("https://fal.run/fal-ai/flux/dev/image-to-image", {
       method: "POST",
       headers: {
         "Authorization": `Key ${FAL_KEY}`,
@@ -28,15 +29,12 @@ export async function POST(request: Request) {
         image_url: imageDataUrl,
         mask_url: maskDataUrl,
         prompt: editPrompt,
-        sync_mode: true,
-        image_size: {
-          width,
-          height,
-        },
+        strength: 0.95,
         num_inference_steps: 28,
         guidance_scale: 3.5,
         num_images: 1,
         enable_safety_checker: false,
+        sync_mode: true,
       }),
     });
 
