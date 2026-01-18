@@ -282,7 +282,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
                 checked={editMode === "global"}
                 onChange={() => setEditMode("global")}
               />
-              <span style={{ fontSize: 14 }}>🌍 Global (Gemini)</span>
+              <span style={{ fontSize: 14 }}>🌍 Global</span>
             </label>
             <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
               <input
@@ -290,42 +290,8 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
                 checked={editMode === "local"}
                 onChange={() => setEditMode("local")}
               />
-              <span style={{ fontSize: 14 }}>🎨 Local (FAL)</span>
+              <span style={{ fontSize: 14 }}>🎨 Local</span>
             </label>
-          </div>
-
-          {/* Descripción del modo */}
-          <div
-            style={{
-              padding: 12,
-              background: "#2a2a2a",
-              borderRadius: 8,
-              fontSize: 12,
-              lineHeight: 1.5,
-              opacity: 0.8,
-            }}
-          >
-            {editMode === "global" ? (
-              <>
-                <strong>🌍 Modo Global:</strong>
-                <br />
-                Edita toda la imagen (iluminación, colores, estilo, etc.)
-                <br />
-                <span style={{ opacity: 0.7 }}>• Usa Gemini</span>
-                <br />
-                <span style={{ opacity: 0.7 }}>• Gratis (tu API)</span>
-              </>
-            ) : (
-              <>
-                <strong>🎨 Modo Local:</strong>
-                <br />
-                Edita solo el área que pintes con el pincel
-                <br />
-                <span style={{ opacity: 0.7 }}>• Usa FAL</span>
-                <br />
-                <span style={{ opacity: 0.7 }}>• ~$0.025 por imagen</span>
-              </>
-            )}
           </div>
 
           {/* Herramientas de Pincel */}
@@ -504,10 +470,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
               opacity: isProcessing || isLoading ? 0.5 : 1,
             }}
           >
-            {isProcessing 
-              ? `⏳ ${editMode === "global" ? "Editando con Gemini..." : "Editando con FAL..."}`
-              : "✨ Aplicar Edición"
-            }
+            {isProcessing ? "⏳ Editando..." : "✨ Aplicar Edición"}
           </button>
         </div>
       </div>

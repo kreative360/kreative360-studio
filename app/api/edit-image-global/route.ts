@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     console.log("🎨 Editando con Gemini (Global):", editPrompt);
 
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash-exp",
+      model: "gemini-1.5-flash",
     });
 
     const imagePart = {
