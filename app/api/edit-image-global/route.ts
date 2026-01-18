@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const API_KEY = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+const genAI = new GoogleGenerativeAI(API_KEY!);
 
 export async function POST(request: Request) {
   try {
@@ -16,61 +17,39 @@ export async function POST(request: Request) {
 
     console.log("🎨 Editando con Gemini (Global):", editPrompt);
 
+    // ← CAMBIO AQUÍ: Usar el modelo correcto
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: "gemini-2.5-flash-image",
     });
 
-    const imagePart = {
-      inlineData: {
-        data: imageBase64,
-        mimeType: "image/jpeg",
+    // ← CAMBIO AQUÍ: Estructura igual que lib/gemini.js
+    const parts = [
+      { text: editPrompt },
+      {
+        inlineData: {
+          data: imageBase64,
+          mimeType: "image/jpeg",
+        },
       },
-    };
+    ];
 
-    const fullPrompt = `You are an expert image editor. Your task is to modify the provided image based on these instructions:
+    // ← CAMBIO AQUÍ: Usar generateContent con la estructura correcta
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts }],
+      generationConfig: {
+        maxOutputTokens: 2048,
+      },
+    });
 
-"${editPrompt}"
+    // ← CAMBIO AQUÍ: Extraer imagen igual que lib/gemini.js
+    const img = result.response?.candidates?.[0]?.content?.parts?.find(
+      (p) => p.inlineData && p.inlineData.mimeType.startsWith("image/")
+    );
 
-IMPORTANT RULES:
-- Maintain the EXACT same composition, perspective, and overall structure
-- Only modify what is explicitly requested in the instructions
-- Keep all other elements unchanged
-- Preserve the original dimensions (${width}x${height}px)
-- Return a high-quality edited version of this specific image
-
-Generate the edited image now.`;
-
-    const result = await model.generateContent([fullPrompt, imagePart]);
-    const response = result.response;
-    
-    const candidates = response.candidates;
-    
-    if (!candidates || candidates.length === 0) {
+    if (!img) {
       console.error("❌ No se generó imagen");
       return NextResponse.json(
         { success: false, error: "No se generó imagen editada" },
-        { status: 500 }
-      );
-    }
-
-    let generatedImageBase64: string | null = null;
-    
-    for (const candidate of candidates) {
-      if (candidate.content?.parts) {
-        for (const part of candidate.content.parts) {
-          if (part.inlineData?.mimeType.startsWith("image/")) {
-            generatedImageBase64 = part.inlineData.data;
-            break;
-          }
-        }
-      }
-      if (generatedImageBase64) break;
-    }
-
-    if (!generatedImageBase64) {
-      console.error("❌ No se encontró imagen en la respuesta");
-      return NextResponse.json(
-        { success: false, error: "No se generó imagen" },
         { status: 500 }
       );
     }
@@ -80,7 +59,7 @@ Generate the edited image now.`;
     return NextResponse.json({
       success: true,
       image: {
-        base64: generatedImageBase64,
+        base64: img.inlineData.data,
         width,
         height,
       },
