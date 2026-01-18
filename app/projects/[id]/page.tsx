@@ -59,9 +59,9 @@ export default function ProjectPage() {
 
   // 🆕 Estado para zoom/lupa
   const [zoomImage, setZoomImage] = useState<{ src: string; x: number; y: number; xPercent: number; yPercent: number } | null>(null);
-  
-  // 🔧 MODIFICADO: Estado para el editor
-  const [selectedImage, setSelectedImage] = useState<ProjectImage | null>(null);
+  const [showEditor, setShowEditor] = useState(false);
+  const [editorImageUrl, setEditorImageUrl] = useState("");
+  const [editorImageId, setEditorImageId] = useState("");
 
   /* ======================================================
      CARGA DE IMÁGENES (REAL)
@@ -204,11 +204,7 @@ export default function ProjectPage() {
       let width = 1024;
       let height = 1024;
       
-      const displayUrl = currentImg.base64 
-        ? `data:image/jpeg;base64,${currentImg.base64}`
-        : currentImg.url;
-      
-      if (displayUrl) {
+      if (currentImg.url) {
         const img = new Image();
         await new Promise<void>((resolve, reject) => {
           img.onload = () => {
@@ -217,7 +213,7 @@ export default function ProjectPage() {
             resolve();
           };
           img.onerror = reject;
-          img.src = displayUrl;
+          img.src = currentImg.url;
         });
       }
 
@@ -267,7 +263,7 @@ export default function ProjectPage() {
       const updatedImage = {
         ...currentImg,
         url: updateData.url,
-        base64: newBase64, // 🆕 Guardar base64 en el estado local
+        base64: newBase64, // 🆕 Guardar base64
         prompt_used: promptToUse,
       };
 
@@ -300,14 +296,14 @@ export default function ProjectPage() {
      🆕 FUNCIÓN PARA GUARDAR EDICIÓN
   ====================================================== */
   const handleSaveEdit = async (editedImageBase64: string) => {
-    if (!selectedImage) return;
+    if (!editorImageId) return;
 
     try {
       const res = await fetch("/api/projects/images/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          imageId: selectedImage.id,
+          imageId: editorImageId,
           newImageBase64: editedImageBase64,
           prompt: "Editado con IA",
         }),
@@ -319,29 +315,31 @@ export default function ProjectPage() {
         throw new Error("Error guardando imagen editada");
       }
 
-      // 🔧 Actualizar el estado local con base64
-      const updatedImage = {
-        ...selectedImage,
-        url: data.url,
-        base64: editedImageBase64, // 🆕 Guardar base64 en estado local
-      };
-
+      // 🔧 Actualizar el estado local CON base64
       setImages((prev) =>
-        prev.map((img) => (img.id === selectedImage.id ? updatedImage : img))
+        prev.map((img) =>
+          img.id === editorImageId
+            ? { ...img, url: data.url, base64: editedImageBase64 }
+            : img
+        )
       );
 
-      // 🔧 Si el modal de revisión está abierto, actualizarlo también
-      if (reviewModal && reviewModal.currentImage?.id === selectedImage.id) {
+      // Si el modal de revisión está abierto, actualizarlo también
+      if (reviewModal && reviewModal.currentImage?.id === editorImageId) {
         setReviewModal({
           ...reviewModal,
-          currentImage: updatedImage,
+          currentImage: {
+            ...reviewModal.currentImage,
+            url: data.url,
+            base64: editedImageBase64, // 🔧 AÑADIDO
+          },
           imagesInReference: reviewModal.imagesInReference.map((img) =>
-            img.id === selectedImage.id ? updatedImage : img
+            img.id === editorImageId ? { ...img, url: data.url, base64: editedImageBase64 } : img
           ),
         });
       }
 
-      setSelectedImage(null);
+      setShowEditor(false);
       alert("✅ Imagen editada correctamente");
     } catch (error: any) {
       console.error("Error guardando edición:", error);
@@ -634,75 +632,69 @@ export default function ProjectPage() {
               gap: 12,
             }}
           >
-            {imgs.map((img) => {
-              const displayUrl = img.base64 
-                ? `data:image/jpeg;base64,${img.base64}`
-                : img.url;
+            {imgs.map((img) => (
+              <div
+                key={img.id}
+                style={{
+                  position: "relative",
+                  aspectRatio: "1",
+                  borderRadius: 8,
+                  overflow: "hidden",
+                  background: "#1f2937",
+                  cursor: "pointer",
+                }}
+                onClick={() => openReviewModal(img)}
+              >
+                {img.url && (
+                  <img
+                    src={img.url}
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    alt="Generated"
+                  />
+                )}
 
-              return (
-                <div
-                  key={img.id}
-                  style={{
-                    position: "relative",
-                    aspectRatio: "1",
-                    borderRadius: 8,
-                    overflow: "hidden",
-                    background: "#1f2937",
-                    cursor: "pointer",
+                <input
+                  type="checkbox"
+                  checked={selected.has(img.id)}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    toggleSelect(img.id);
                   }}
-                  onClick={() => openReviewModal(img)}
-                >
-                  {displayUrl && (
-                    <img
-                      src={displayUrl}
-                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                      alt="Generated"
-                    />
-                  )}
+                  style={{
+                    position: "absolute",
+                    top: 8,
+                    left: 8,
+                    width: 20,
+                    height: 20,
+                    cursor: "pointer",
+                    accentColor: "#ff6b6b",
+                  }}
+                />
 
-                  <input
-                    type="checkbox"
-                    checked={selected.has(img.id)}
-                    onChange={(e) => {
-                      e.stopPropagation();
-                      toggleSelect(img.id);
-                    }}
+                {img.validation_status !== "pending" && (
+                  <div
                     style={{
                       position: "absolute",
                       top: 8,
-                      left: 8,
-                      width: 20,
-                      height: 20,
-                      cursor: "pointer",
-                      accentColor: "#ff6b6b",
+                      right: 8,
+                      width: 28,
+                      height: 28,
+                      borderRadius: "50%",
+                      background:
+                        img.validation_status === "approved" ? "#10b981" : "#ef4444",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 16,
+                      color: "#fff",
+                      fontWeight: "bold",
                     }}
-                  />
-
-                  {img.validation_status !== "pending" && (
-                    <div
-                      style={{
-                        position: "absolute",
-                        top: 8,
-                        right: 8,
-                        width: 28,
-                        height: 28,
-                        borderRadius: "50%",
-                        background:
-                          img.validation_status === "approved" ? "#10b981" : "#ef4444",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 16,
-                        color: "#fff",
-                        fontWeight: "bold",
-                      }}
-                    >
-                      {img.validation_status === "approved" ? "✓" : "✕"}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                  >
+                    {img.validation_status === "approved" ? "✓" : "✕"}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       ))}
@@ -874,20 +866,11 @@ export default function ProjectPage() {
                     position: "relative",
                   }}
                 >
-                  {reviewModal.currentImage && (
+                  {reviewModal.currentImage.url && (
                     <img
-                      src={
-                        reviewModal.currentImage.base64
-                          ? `data:image/jpeg;base64,${reviewModal.currentImage.base64}`
-                          : reviewModal.currentImage.url
-                      }
+                      src={reviewModal.currentImage.url}
                       onMouseMove={(e) =>
-                        handleMouseMove(
-                          e,
-                          reviewModal.currentImage.base64
-                            ? `data:image/jpeg;base64,${reviewModal.currentImage.base64}`
-                            : reviewModal.currentImage.url || ""
-                        )
+                        handleMouseMove(e, reviewModal.currentImage.url || "")
                       }
                       onMouseLeave={handleMouseLeave}
                       style={{
@@ -901,11 +884,7 @@ export default function ProjectPage() {
                       alt="Generada"
                     />
                   )}
-                  {zoomImage && zoomImage.src === (
-                    reviewModal.currentImage.base64
-                      ? `data:image/jpeg;base64,${reviewModal.currentImage.base64}`
-                      : reviewModal.currentImage.url
-                  ) && (
+                  {zoomImage && zoomImage.src === reviewModal.currentImage.url && (
                     <div
                       style={{
                         position: "fixed",
@@ -991,7 +970,9 @@ export default function ProjectPage() {
             <button
               onClick={() => {
                 if (reviewModal?.currentImage) {
-                  setSelectedImage(reviewModal.currentImage);
+                  setEditorImageUrl(reviewModal.currentImage.url || "");
+                  setEditorImageId(reviewModal.currentImage.id);
+                  setShowEditor(true);
                 }
               }}
               style={{
@@ -1030,70 +1011,64 @@ export default function ProjectPage() {
                 paddingBottom: 8,
               }}
             >
-              {reviewModal.imagesInReference.map((img, idx) => {
-                const thumbUrl = img.base64 
-                  ? `data:image/jpeg;base64,${img.base64}`
-                  : img.url;
-
-                return (
-                  <div
-                    key={img.id}
-                    onClick={() =>
-                      setReviewModal({
-                        ...reviewModal,
-                        currentImage: img,
-                        currentIndex: idx,
-                      })
-                    }
-                    style={{
-                      minWidth: 80,
-                      height: 80,
-                      borderRadius: 8,
-                      overflow: "hidden",
-                      cursor: "pointer",
-                      position: "relative",
-                      border:
-                        img.id === reviewModal.currentImage?.id
-                          ? "3px solid #ff6b6b"
-                          : "3px solid transparent",
-                      opacity: img.id === reviewModal.currentImage?.id ? 1 : 0.6,
-                    }}
-                  >
-                    {thumbUrl && (
-                      <img
-                        src={thumbUrl}
-                        style={{
-                          width: "100%",
-                          height: "100%",
-                          objectFit: "cover",
-                        }}
-                        alt={`Miniatura ${idx + 1}`}
-                      />
-                    )}
-                    {img.validation_status !== "pending" && (
-                      <div
-                        style={{
-                          position: "absolute",
-                          top: 3,
-                          right: 3,
-                          width: 20,
-                          height: 20,
-                          borderRadius: "50%",
-                          background:
-                            img.validation_status === "approved" ? "#10b981" : "#ef4444",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: 12,
-                          color: "#fff",
-                        }}
-                      >
-                        {img.validation_status === "approved" ? "✓" : "✕"}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+              {reviewModal.imagesInReference.map((img, idx) => (
+                <div
+                  key={img.id}
+                  onClick={() =>
+                    setReviewModal({
+                      ...reviewModal,
+                      currentImage: img,
+                      currentIndex: idx,
+                    })
+                  }
+                  style={{
+                    minWidth: 80,
+                    height: 80,
+                    borderRadius: 8,
+                    overflow: "hidden",
+                    cursor: "pointer",
+                    position: "relative",
+                    border:
+                      img.id === reviewModal.currentImage?.id
+                        ? "3px solid #ff6b6b"
+                        : "3px solid transparent",
+                    opacity: img.id === reviewModal.currentImage?.id ? 1 : 0.6,
+                  }}
+                >
+                  {img.url && (
+                    <img
+                      src={img.url}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                      }}
+                      alt={`Miniatura ${idx + 1}`}
+                    />
+                  )}
+                  {img.validation_status !== "pending" && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: 3,
+                        right: 3,
+                        width: 20,
+                        height: 20,
+                        borderRadius: "50%",
+                        background:
+                          img.validation_status === "approved" ? "#10b981" : "#ef4444",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 12,
+                        color: "#fff",
+                      }}
+                    >
+                      {img.validation_status === "approved" ? "✓" : "✕"}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
 
             {/* PROMPT EDITABLE (DERECHA) */}
@@ -1133,15 +1108,16 @@ export default function ProjectPage() {
         </div>
       )}
 
-      {/* 🔧 EDITOR DE IMÁGENES */}
-      {selectedImage && (
+      {/* 🔧 EDITOR DE IMÁGENES - CORREGIDO */}
+      {showEditor && (
         <ImageEditor
-          imageUrl={selectedImage.base64 
-            ? `data:image/jpeg;base64,${selectedImage.base64}`
-            : selectedImage.url || ""
+          imageUrl={
+            images.find(img => img.id === editorImageId)?.base64
+              ? `data:image/jpeg;base64,${images.find(img => img.id === editorImageId)?.base64}`
+              : editorImageUrl
           }
           onSave={handleSaveEdit}
-          onCancel={() => setSelectedImage(null)}
+          onCancel={() => setShowEditor(false)}
         />
       )}
     </div>
