@@ -9,7 +9,6 @@ type ImageEditorProps = {
 };
 
 export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorProps) {
-  const [editMode, setEditMode] = useState<"global" | "local">("global");
   const [editPrompt, setEditPrompt] = useState("");
   const [brushSize, setBrushSize] = useState(30);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -21,7 +20,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
   const maskCanvasRef = useRef<HTMLCanvasElement>(null);
   const [originalImage, setOriginalImage] = useState<HTMLImageElement | null>(null);
 
-  // Cargar imagen original (convierte URL a base64 via proxy)
+  // Cargar imagen original
   useEffect(() => {
     setIsLoading(true);
     setLoadError(null);
@@ -30,7 +29,6 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
       try {
         let imageDataUrl = imageUrl;
 
-        // Si NO es base64, convertir via proxy
         if (!imageUrl.startsWith("data:")) {
           console.log("📡 Descargando imagen via proxy...");
           const response = await fetch(`/api/image-proxy?url=${encodeURIComponent(imageUrl)}`);
@@ -49,14 +47,12 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
           console.log("✅ Imagen convertida a base64");
         }
 
-        // Cargar imagen en elemento Image
         const img = new Image();
         
         img.onload = () => {
           console.log("✅ Imagen cargada en canvas:", img.width, "x", img.height);
           setOriginalImage(img);
           
-          // Esperar un frame para que React monte los canvas
           requestAnimationFrame(() => {
             const canvas = canvasRef.current;
             const maskCanvas = maskCanvasRef.current;
@@ -124,7 +120,6 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
 
   // Funciones de dibujo
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (editMode === "global") return;
     setIsDrawing(true);
     draw(e);
   };
@@ -134,7 +129,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
   };
 
   const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing || editMode === "global") return;
+    if (!isDrawing) return;
     
     const maskCanvas = maskCanvasRef.current;
     if (!maskCanvas) return;
@@ -163,6 +158,27 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
     }
   };
 
+  // Detectar si hay área pintada
+  const hasPaintedArea = (): boolean => {
+    const maskCanvas = maskCanvasRef.current;
+    if (!maskCanvas) return false;
+    
+    const ctx = maskCanvas.getContext("2d");
+    if (!ctx) return false;
+    
+    const imageData = ctx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
+    const data = imageData.data;
+    
+    // Buscar píxeles que no sean negros (RGBA: no todos en 0)
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i] > 10 || data[i + 1] > 10 || data[i + 2] > 10) {
+        return true;
+      }
+    }
+    
+    return false;
+  };
+
   const handleApply = async () => {
     if (!editPrompt.trim()) {
       alert("Escribe instrucciones para la edición");
@@ -172,29 +188,19 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
     setIsProcessing(true);
 
     try {
-      // Obtener imagen original en base64
       const canvas = canvasRef.current;
       if (!canvas) throw new Error("Canvas no disponible");
       
       const imageBase64 = canvas.toDataURL("image/jpeg", 0.95).split(",")[1];
       
-      // DECISIÓN: ¿Qué API usar?
+      // Detectar automáticamente el modo
+      const isLocalEdit = hasPaintedArea();
+      
       let apiEndpoint: string;
       let bodyData: any;
 
-      if (editMode === "global") {
-        // MODO GLOBAL → Gemini
-        console.log("🌍 Usando Gemini para edición global");
-        apiEndpoint = "/api/edit-image-global";
-        bodyData = {
-          imageBase64,
-          editPrompt,
-          width: canvas.width,
-          height: canvas.height,
-        };
-      } else {
-        // MODO LOCAL → FAL Inpainting
-        console.log("🎨 Usando FAL para edición local (inpainting)");
+      if (isLocalEdit) {
+        console.log("🎨 Edición LOCAL detectada (hay área pintada)");
         const maskCanvas = maskCanvasRef.current;
         if (!maskCanvas) throw new Error("Mask canvas no disponible");
         
@@ -208,11 +214,19 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
           width: canvas.width,
           height: canvas.height,
         };
+      } else {
+        console.log("🌍 Edición GLOBAL detectada (sin área pintada)");
+        apiEndpoint = "/api/edit-image-global";
+        bodyData = {
+          imageBase64,
+          editPrompt,
+          width: canvas.width,
+          height: canvas.height,
+        };
       }
 
       console.log(`📡 Llamando a ${apiEndpoint}...`);
 
-      // Llamar a la API correspondiente
       const response = await fetch(apiEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -226,8 +240,6 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
       }
 
       console.log("✅ Imagen editada correctamente");
-
-      // Devolver imagen editada
       onSave(data.image.base64);
 
     } catch (error: any) {
@@ -252,226 +264,237 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
     >
       <div
         style={{
-          background: "#1a1a1a",
+          background: "#fff",
           borderRadius: 16,
-          padding: 24,
+          padding: 32,
           maxWidth: "90vw",
           maxHeight: "90vh",
           display: "flex",
+          flexDirection: "column",
           gap: 20,
-          color: "#fff",
+          color: "#000",
         }}
       >
-        {/* Panel Izquierdo - Herramientas */}
-        <div
-          style={{
-            width: 200,
-            display: "flex",
-            flexDirection: "column",
-            gap: 16,
-          }}
-        >
-          <h3 style={{ margin: 0, fontSize: 18 }}>✏️ Editor</h3>
-
-          {/* Modo de Edición */}
-          <div>
-            <p style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>Modo:</p>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, cursor: "pointer" }}>
-              <input
-                type="radio"
-                checked={editMode === "global"}
-                onChange={() => setEditMode("global")}
-              />
-              <span style={{ fontSize: 14 }}>🌍 Global</span>
-            </label>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-              <input
-                type="radio"
-                checked={editMode === "local"}
-                onChange={() => setEditMode("local")}
-              />
-              <span style={{ fontSize: 14 }}>🎨 Local</span>
-            </label>
-          </div>
-
-          {/* Herramientas de Pincel */}
-          {editMode === "local" && (
-            <>
-              <div>
-                <p style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>
-                  Tamaño Pincel: {brushSize}px
-                </p>
-                <input
-                  type="range"
-                  min="5"
-                  max="100"
-                  value={brushSize}
-                  onChange={(e) => setBrushSize(Number(e.target.value))}
-                  style={{ width: "100%" }}
-                />
-              </div>
-
-              <button
-                onClick={clearMask}
-                style={{
-                  padding: "8px 16px",
-                  background: "#ef4444",
-                  border: "none",
-                  borderRadius: 8,
-                  color: "#fff",
-                  cursor: "pointer",
-                  fontSize: 14,
-                }}
-              >
-                🗑️ Limpiar Máscara
-              </button>
-            </>
-          )}
-
-          <div style={{ flex: 1 }} />
-
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>✏️ Editar imagen</h3>
           <button
             onClick={onCancel}
             style={{
-              padding: "10px",
-              background: "#333",
+              background: "transparent",
               border: "none",
-              borderRadius: 8,
-              color: "#fff",
+              fontSize: 24,
               cursor: "pointer",
+              padding: 0,
             }}
           >
-            Cancelar
+            ✕
           </button>
         </div>
 
-        {/* Panel Central - Canvas */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {/* Contenido principal */}
+        <div style={{ display: "flex", gap: 20 }}>
+          {/* Panel izquierdo - Herramientas */}
           <div
             style={{
-              position: "relative",
-              width: 600,
-              height: 600,
-              border: "2px solid #333",
-              borderRadius: 12,
-              overflow: "hidden",
-              background: "#000",
+              width: 150,
               display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
+              flexDirection: "column",
+              gap: 16,
             }}
           >
-            {/* Canvas SIEMPRE presente */}
-            <canvas
-              ref={canvasRef}
+            <div
               style={{
-                position: "absolute",
-                top: "50%",
-                left: "50%",
-                transform: "translate(-50%, -50%)",
-                maxWidth: "100%",
-                maxHeight: "100%",
-                objectFit: "contain",
-                display: isLoading || loadError ? "none" : "block",
-              }}
-            />
-            
-            {/* Canvas de máscara - SIEMPRE presente */}
-            <canvas
-              ref={maskCanvasRef}
-              onMouseDown={startDrawing}
-              onMouseMove={draw}
-              onMouseUp={stopDrawing}
-              onMouseLeave={stopDrawing}
-              style={{
-                position: "absolute",
-                top: "50%",
-                left: "50%",
-                transform: "translate(-50%, -50%)",
-                maxWidth: "100%",
-                maxHeight: "100%",
-                objectFit: "contain",
-                cursor: editMode === "local" ? "crosshair" : "default",
-                opacity: editMode === "local" && !isLoading && !loadError ? 0.5 : 0,
-                mixBlendMode: "screen",
-                pointerEvents: editMode === "local" && !isLoading && !loadError ? "auto" : "none",
-              }}
-            />
-
-            {isLoading && (
-              <div style={{ color: "#fff", fontSize: 16, textAlign: "center", zIndex: 10 }}>
-                <div style={{ marginBottom: 16 }}>⏳ Cargando imagen...</div>
-                <div style={{ fontSize: 12, opacity: 0.7 }}>
-                  Esto puede tardar unos segundos
-                </div>
-              </div>
-            )}
-            
-            {loadError && (
-              <div style={{ color: "#ef4444", fontSize: 14, textAlign: "center", padding: 20, zIndex: 10 }}>
-                <div style={{ marginBottom: 16 }}>❌ {loadError}</div>
-                <button
-                  onClick={() => window.location.reload()}
-                  style={{
-                    padding: "8px 16px",
-                    background: "#3b82f6",
-                    border: "none",
-                    borderRadius: 8,
-                    color: "#fff",
-                    cursor: "pointer",
-                  }}
-                >
-                  🔄 Reintentar
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Instrucciones */}
-          <div>
-            <p style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>
-              Instrucciones de edición:
-            </p>
-            <textarea
-              value={editPrompt}
-              onChange={(e) => setEditPrompt(e.target.value)}
-              placeholder={
-                editMode === "global"
-                  ? "Ej: Change the background to a modern white wall"
-                  : "Ej: Add a red vase with flowers on top of the table"
-              }
-              style={{
-                width: "100%",
-                height: 80,
-                padding: 12,
-                background: "#2a2a2a",
-                border: "1px solid #444",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "8px 12px",
+                background: "#f0f0f0",
                 borderRadius: 8,
-                color: "#fff",
-                fontSize: 14,
-                fontFamily: "inherit",
-                resize: "none",
+                cursor: "pointer",
               }}
-            />
+            >
+              <span style={{ fontSize: 18 }}>✏️</span>
+              <span style={{ fontSize: 14, fontWeight: 500 }}>Pincel</span>
+            </div>
+
+            <div>
+              <p style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>
+                Tamaño
+              </p>
+              <input
+                type="range"
+                min="5"
+                max="100"
+                value={brushSize}
+                onChange={(e) => setBrushSize(Number(e.target.value))}
+                style={{ width: "100%" }}
+              />
+              <p style={{ fontSize: 12, textAlign: "center", margin: "4px 0 0 0" }}>
+                {brushSize}
+              </p>
+            </div>
+
+            <button
+              onClick={clearMask}
+              style={{
+                padding: "8px 12px",
+                background: "transparent",
+                border: "1px solid #ddd",
+                borderRadius: 8,
+                cursor: "pointer",
+                fontSize: 13,
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <span>🔄</span>
+              <span>Restablecer</span>
+            </button>
           </div>
 
-          <button
-            onClick={handleApply}
-            disabled={isProcessing || isLoading}
-            style={{
-              padding: "12px 24px",
-              background: isProcessing || isLoading ? "#666" : "#3b82f6",
-              border: "none",
-              borderRadius: 10,
-              color: "#fff",
-              fontSize: 16,
-              fontWeight: 600,
-              cursor: isProcessing || isLoading ? "not-allowed" : "pointer",
-              opacity: isProcessing || isLoading ? 0.5 : 1,
-            }}
-          >
-            {isProcessing ? "⏳ Editando..." : "✨ Aplicar Edición"}
-          </button>
+          {/* Panel central - Canvas + Prompt */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* Canvas */}
+            <div
+              style={{
+                position: "relative",
+                width: 600,
+                height: 450,
+                border: "2px solid #e0e0e0",
+                borderRadius: 12,
+                overflow: "hidden",
+                background: "#f5f5f5",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <canvas
+                ref={canvasRef}
+                style={{
+                  position: "absolute",
+                  top: "50%",
+                  left: "50%",
+                  transform: "translate(-50%, -50%)",
+                  maxWidth: "100%",
+                  maxHeight: "100%",
+                  objectFit: "contain",
+                  display: isLoading || loadError ? "none" : "block",
+                }}
+              />
+              
+              <canvas
+                ref={maskCanvasRef}
+                onMouseDown={startDrawing}
+                onMouseMove={draw}
+                onMouseUp={stopDrawing}
+                onMouseLeave={stopDrawing}
+                style={{
+                  position: "absolute",
+                  top: "50%",
+                  left: "50%",
+                  transform: "translate(-50%, -50%)",
+                  maxWidth: "100%",
+                  maxHeight: "100%",
+                  objectFit: "contain",
+                  cursor: "crosshair",
+                  opacity: 0.4,
+                  mixBlendMode: "multiply",
+                  pointerEvents: isLoading || loadError ? "none" : "auto",
+                }}
+              />
+
+              {isLoading && (
+                <div style={{ textAlign: "center", zIndex: 10 }}>
+                  <div style={{ marginBottom: 16 }}>⏳ Cargando imagen...</div>
+                </div>
+              )}
+              
+              {loadError && (
+                <div style={{ color: "#ef4444", textAlign: "center", padding: 20, zIndex: 10 }}>
+                  <div style={{ marginBottom: 16 }}>❌ {loadError}</div>
+                  <button
+                    onClick={() => window.location.reload()}
+                    style={{
+                      padding: "8px 16px",
+                      background: "#3b82f6",
+                      border: "none",
+                      borderRadius: 8,
+                      color: "#fff",
+                      cursor: "pointer",
+                    }}
+                  >
+                    🔄 Reintentar
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Instrucciones */}
+            <div>
+              <p style={{ fontSize: 13, opacity: 0.7, marginBottom: 8 }}>
+                Instrucciones
+              </p>
+              <textarea
+                value={editPrompt}
+                onChange={(e) => setEditPrompt(e.target.value)}
+                placeholder="Describe los cambios que quieres hacer..."
+                style={{
+                  width: "100%",
+                  height: 80,
+                  padding: 12,
+                  background: "#f5f5f5",
+                  border: "1px solid #e0e0e0",
+                  borderRadius: 8,
+                  fontSize: 14,
+                  fontFamily: "inherit",
+                  resize: "none",
+                }}
+                maxLength={500}
+              />
+              <p style={{ fontSize: 11, opacity: 0.5, textAlign: "right", margin: "4px 0 0 0" }}>
+                {editPrompt.length}/500
+              </p>
+            </div>
+
+            {/* Botones */}
+            <div style={{ display: "flex", gap: 12 }}>
+              <button
+                onClick={onCancel}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  background: "transparent",
+                  border: "1px solid #e0e0e0",
+                  borderRadius: 10,
+                  cursor: "pointer",
+                  fontSize: 15,
+                  fontWeight: 500,
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleApply}
+                disabled={isProcessing || isLoading}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  background: isProcessing || isLoading ? "#ccc" : "#000",
+                  border: "none",
+                  borderRadius: 10,
+                  color: "#fff",
+                  fontSize: 15,
+                  fontWeight: 600,
+                  cursor: isProcessing || isLoading ? "not-allowed" : "pointer",
+                }}
+              >
+                {isProcessing ? "⏳ Generando..." : "Generar"}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
