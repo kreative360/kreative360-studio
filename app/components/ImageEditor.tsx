@@ -178,32 +178,45 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
       
       const imageBase64 = canvas.toDataURL("image/jpeg", 0.95).split(",")[1];
       
-      // Obtener máscara en base64 (solo si es modo local)
-      let maskBase64 = null;
-      if (editMode === "local") {
+      // DECISIÓN: ¿Qué API usar?
+      let apiEndpoint: string;
+      let bodyData: any;
+
+      if (editMode === "global") {
+        // MODO GLOBAL → Gemini
+        console.log("🌍 Usando Gemini para edición global");
+        apiEndpoint = "/api/edit-image-global";
+        bodyData = {
+          imageBase64,
+          editPrompt,
+          width: canvas.width,
+          height: canvas.height,
+        };
+      } else {
+        // MODO LOCAL → FAL Inpainting
+        console.log("🎨 Usando FAL para edición local (inpainting)");
         const maskCanvas = maskCanvasRef.current;
         if (!maskCanvas) throw new Error("Mask canvas no disponible");
-        maskBase64 = maskCanvas.toDataURL("image/png").split(",")[1];
-      }
-
-      console.log("🎨 Enviando edición:", {
-        mode: editMode,
-        hasMask: !!maskBase64,
-        prompt: editPrompt,
-      });
-
-      // Llamar a la API de edición
-      const response = await fetch("/api/edit-image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        
+        const maskBase64 = maskCanvas.toDataURL("image/png").split(",")[1];
+        
+        apiEndpoint = "/api/edit-image-local";
+        bodyData = {
           imageBase64,
           maskBase64,
           editPrompt,
-          editMode,
           width: canvas.width,
           height: canvas.height,
-        }),
+        };
+      }
+
+      console.log(`📡 Llamando a ${apiEndpoint}...`);
+
+      // Llamar a la API correspondiente
+      const response = await fetch(apiEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(bodyData),
       });
 
       const data = await response.json();
@@ -212,11 +225,13 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
         throw new Error(data.error || "Error editando imagen");
       }
 
+      console.log("✅ Imagen editada correctamente");
+
       // Devolver imagen editada
       onSave(data.image.base64);
 
     } catch (error: any) {
-      console.error("Error editando:", error);
+      console.error("❌ Error editando:", error);
       alert("❌ Error: " + error.message);
     } finally {
       setIsProcessing(false);
@@ -267,7 +282,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
                 checked={editMode === "global"}
                 onChange={() => setEditMode("global")}
               />
-              <span style={{ fontSize: 14 }}>🌍 Global</span>
+              <span style={{ fontSize: 14 }}>🌍 Global (Gemini)</span>
             </label>
             <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
               <input
@@ -275,8 +290,42 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
                 checked={editMode === "local"}
                 onChange={() => setEditMode("local")}
               />
-              <span style={{ fontSize: 14 }}>🎨 Local (Pincel)</span>
+              <span style={{ fontSize: 14 }}>🎨 Local (FAL)</span>
             </label>
+          </div>
+
+          {/* Descripción del modo */}
+          <div
+            style={{
+              padding: 12,
+              background: "#2a2a2a",
+              borderRadius: 8,
+              fontSize: 12,
+              lineHeight: 1.5,
+              opacity: 0.8,
+            }}
+          >
+            {editMode === "global" ? (
+              <>
+                <strong>🌍 Modo Global:</strong>
+                <br />
+                Edita toda la imagen (iluminación, colores, estilo, etc.)
+                <br />
+                <span style={{ opacity: 0.7 }}>• Usa Gemini</span>
+                <br />
+                <span style={{ opacity: 0.7 }}>• Gratis (tu API)</span>
+              </>
+            ) : (
+              <>
+                <strong>🎨 Modo Local:</strong>
+                <br />
+                Edita solo el área que pintes con el pincel
+                <br />
+                <span style={{ opacity: 0.7 }}>• Usa FAL</span>
+                <br />
+                <span style={{ opacity: 0.7 }}>• ~$0.025 por imagen</span>
+              </>
+            )}
           </div>
 
           {/* Herramientas de Pincel */}
@@ -422,8 +471,8 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
               onChange={(e) => setEditPrompt(e.target.value)}
               placeholder={
                 editMode === "global"
-                  ? "Ej: Cambia la pared de blanco a gris"
-                  : "Ej: Añade una planta decorativa"
+                  ? "Ej: Change the background to a modern white wall"
+                  : "Ej: Add a red vase with flowers on top of the table"
               }
               style={{
                 width: "100%",
@@ -455,7 +504,10 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
               opacity: isProcessing || isLoading ? 0.5 : 1,
             }}
           >
-            {isProcessing ? "⏳ Editando..." : "✨ Aplicar Edición"}
+            {isProcessing 
+              ? `⏳ ${editMode === "global" ? "Editando con Gemini..." : "Editando con FAL..."}`
+              : "✨ Aplicar Edición"
+            }
           </button>
         </div>
       </div>
