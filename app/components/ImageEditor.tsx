@@ -318,7 +318,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
                 border: "1px solid #e5e5e5",
                 borderRadius: 8,
                 overflow: "hidden",
-                background: "#FFFFFF", // 🔧 CORREGIDO: Fondo blanco
+                background: "#f5f5f5",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -327,14 +327,11 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
               <canvas
                 ref={canvasRef}
                 style={{
-                  position: "absolute",
-                  top: "50%",
-                  left: "50%",
-                  transform: "translate(-50%, -50%)",
                   maxWidth: "100%",
                   maxHeight: "100%",
                   objectFit: "contain",
                   display: isLoading || loadError ? "none" : "block",
+                  background: "#FFFFFF",
                 }}
               />
               
