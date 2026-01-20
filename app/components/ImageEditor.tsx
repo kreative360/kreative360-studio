@@ -47,6 +47,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
         }
 
         const img = new Image();
+        img.crossOrigin = "anonymous";
         
         img.onload = () => {
           console.log("✅ Imagen cargada en canvas:", img.width, "x", img.height);
@@ -80,7 +81,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
             maskCanvas.width = width;
             maskCanvas.height = height;
             
-            const ctx = canvas.getContext("2d", { alpha: false });
+            const ctx = canvas.getContext("2d", { willReadFrequently: true });
             const maskCtx = maskCanvas.getContext("2d");
             
             if (!ctx || !maskCtx) {
@@ -90,15 +91,11 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
               return;
             }
             
-            // 🔧 CORRECCIÓN: Fondo blanco sólido garantizado
-            // 1. Limpiar canvas completamente
-            ctx.clearRect(0, 0, width, height);
-            
-            // 2. Pintar fondo blanco opaco
+            // 🔧 SOLUCIÓN DEFINITIVA: Fondo blanco sólido
             ctx.fillStyle = "#FFFFFF";
             ctx.fillRect(0, 0, width, height);
             
-            // 3. Dibujar la imagen encima
+            // Dibujar la imagen encima del fondo blanco
             ctx.drawImage(img, 0, 0, width, height);
             console.log("🎨 Imagen dibujada con fondo blanco");
             
@@ -196,8 +193,23 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
       const canvas = canvasRef.current;
       if (!canvas) throw new Error("Canvas no disponible");
       
-      // 🔧 CORRECCIÓN: Usar calidad máxima para evitar degradación
-      const imageBase64 = canvas.toDataURL("image/jpeg", 1.0).split(",")[1];
+      // 🔧 SOLUCIÓN: Crear un nuevo canvas temporal con fondo blanco garantizado
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = canvas.width;
+      tempCanvas.height = canvas.height;
+      const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+      
+      if (!tempCtx) throw new Error("No se pudo crear canvas temporal");
+      
+      // Pintar fondo blanco sólido en el canvas temporal
+      tempCtx.fillStyle = '#FFFFFF';
+      tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+      
+      // Copiar la imagen del canvas original al temporal
+      tempCtx.drawImage(canvas, 0, 0);
+      
+      // Convertir a JPEG de máxima calidad desde el canvas temporal
+      const imageBase64 = tempCanvas.toDataURL("image/jpeg", 1.0).split(",")[1];
       
       const isLocalEdit = hasPaintedArea();
       
@@ -341,6 +353,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
                   maxHeight: "100%",
                   objectFit: "contain",
                   display: isLoading || loadError ? "none" : "block",
+                  backgroundColor: "#FFFFFF",
                 }}
               />
               
