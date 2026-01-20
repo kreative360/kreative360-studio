@@ -80,7 +80,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
             maskCanvas.width = width;
             maskCanvas.height = height;
             
-            const ctx = canvas.getContext("2d");
+            const ctx = canvas.getContext("2d", { alpha: false });
             const maskCtx = maskCanvas.getContext("2d");
             
             if (!ctx || !maskCtx) {
@@ -90,12 +90,17 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
               return;
             }
             
-            // 🔧 CAMBIO 1: Pintar fondo blanco ANTES de dibujar la imagen
+            // 🔧 CORRECCIÓN: Fondo blanco sólido garantizado
+            // 1. Limpiar canvas completamente
+            ctx.clearRect(0, 0, width, height);
+            
+            // 2. Pintar fondo blanco opaco
             ctx.fillStyle = "#FFFFFF";
             ctx.fillRect(0, 0, width, height);
             
+            // 3. Dibujar la imagen encima
             ctx.drawImage(img, 0, 0, width, height);
-            console.log("🎨 Imagen dibujada en canvas");
+            console.log("🎨 Imagen dibujada con fondo blanco");
             
             maskCtx.fillStyle = "black";
             maskCtx.fillRect(0, 0, width, height);
@@ -191,7 +196,8 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
       const canvas = canvasRef.current;
       if (!canvas) throw new Error("Canvas no disponible");
       
-      const imageBase64 = canvas.toDataURL("image/jpeg", 0.95).split(",")[1];
+      // 🔧 CORRECCIÓN: Usar calidad máxima para evitar degradación
+      const imageBase64 = canvas.toDataURL("image/jpeg", 1.0).split(",")[1];
       
       const isLocalEdit = hasPaintedArea();
       
