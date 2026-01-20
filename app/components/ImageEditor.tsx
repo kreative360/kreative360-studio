@@ -90,12 +90,12 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
               return;
             }
             
-            // 🔧 CORREGIDO: Fondo blanco antes de dibujar la imagen
+            // 🔧 CAMBIO 1: Pintar fondo blanco ANTES de dibujar la imagen
             ctx.fillStyle = "#FFFFFF";
             ctx.fillRect(0, 0, width, height);
             
             ctx.drawImage(img, 0, 0, width, height);
-            console.log("🎨 Imagen dibujada en canvas con fondo blanco");
+            console.log("🎨 Imagen dibujada en canvas");
             
             maskCtx.fillStyle = "black";
             maskCtx.fillRect(0, 0, width, height);
@@ -318,49 +318,46 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
                 border: "1px solid #e5e5e5",
                 borderRadius: 8,
                 overflow: "hidden",
-                background: "#f5f5f5",
+                background: "#FFFFFF",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
               }}
             >
-              {/* Contenedor con fondo blanco para ambos canvas */}
-              <div
+              <canvas
+                ref={canvasRef}
                 style={{
-                  position: "relative",
+                  position: "absolute",
+                  top: "50%",
+                  left: "50%",
+                  transform: "translate(-50%, -50%)",
                   maxWidth: "100%",
                   maxHeight: "100%",
-                  background: "#FFFFFF",
+                  objectFit: "contain",
                   display: isLoading || loadError ? "none" : "block",
                 }}
-              >
-                <canvas
-                  ref={canvasRef}
-                  style={{
-                    display: "block",
-                    maxWidth: "100%",
-                    maxHeight: "100%",
-                  }}
-                />
-                
-                <canvas
-                  ref={maskCanvasRef}
-                  onMouseDown={startDrawing}
-                  onMouseMove={draw}
-                  onMouseUp={stopDrawing}
-                  onMouseLeave={stopDrawing}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    height: "100%",
-                    cursor: "crosshair",
-                    opacity: 0.4,
-                    mixBlendMode: "multiply",
-                  }}
-                />
-              </div>
+              />
+              
+              <canvas
+                ref={maskCanvasRef}
+                onMouseDown={startDrawing}
+                onMouseMove={draw}
+                onMouseUp={stopDrawing}
+                onMouseLeave={stopDrawing}
+                style={{
+                  position: "absolute",
+                  top: "50%",
+                  left: "50%",
+                  transform: "translate(-50%, -50%)",
+                  maxWidth: "100%",
+                  maxHeight: "100%",
+                  objectFit: "contain",
+                  cursor: "crosshair",
+                  opacity: 0.4,
+                  mixBlendMode: "multiply",
+                  pointerEvents: isLoading || loadError ? "none" : "auto",
+                }}
+              />
 
               {isLoading && (
                 <div style={{ textAlign: "center", zIndex: 10, color: "#666" }}>
