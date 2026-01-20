@@ -1092,7 +1092,10 @@ export default function ProjectPage() {
             <button
               onClick={() => {
                 if (reviewModal?.currentImage) {
-                  setEditorImageUrl(reviewModal.currentImage.url || "");
+                  const imageToEdit = reviewModal.currentImage.base64
+                    ? `data:image/jpeg;base64,${reviewModal.currentImage.base64}`
+                    : reviewModal.currentImage.url || "";
+                  setEditorImageUrl(imageToEdit);
                   setEditorImageId(reviewModal.currentImage.id);
                   setShowEditor(true);
                 }
