@@ -324,37 +324,43 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
                 justifyContent: "center",
               }}
             >
-              <canvas
-                ref={canvasRef}
+              {/* Contenedor con fondo blanco para ambos canvas */}
+              <div
                 style={{
+                  position: "relative",
                   maxWidth: "100%",
                   maxHeight: "100%",
-                  objectFit: "contain",
-                  display: isLoading || loadError ? "none" : "block",
                   background: "#FFFFFF",
+                  display: isLoading || loadError ? "none" : "block",
                 }}
-              />
-              
-              <canvas
-                ref={maskCanvasRef}
-                onMouseDown={startDrawing}
-                onMouseMove={draw}
-                onMouseUp={stopDrawing}
-                onMouseLeave={stopDrawing}
-                style={{
-                  position: "absolute",
-                  top: "50%",
-                  left: "50%",
-                  transform: "translate(-50%, -50%)",
-                  maxWidth: "100%",
-                  maxHeight: "100%",
-                  objectFit: "contain",
-                  cursor: "crosshair",
-                  opacity: 0.4,
-                  mixBlendMode: "multiply",
-                  pointerEvents: isLoading || loadError ? "none" : "auto",
-                }}
-              />
+              >
+                <canvas
+                  ref={canvasRef}
+                  style={{
+                    display: "block",
+                    maxWidth: "100%",
+                    maxHeight: "100%",
+                  }}
+                />
+                
+                <canvas
+                  ref={maskCanvasRef}
+                  onMouseDown={startDrawing}
+                  onMouseMove={draw}
+                  onMouseUp={stopDrawing}
+                  onMouseLeave={stopDrawing}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    height: "100%",
+                    cursor: "crosshair",
+                    opacity: 0.4,
+                    mixBlendMode: "multiply",
+                  }}
+                />
+              </div>
 
               {isLoading && (
                 <div style={{ textAlign: "center", zIndex: 10, color: "#666" }}>
