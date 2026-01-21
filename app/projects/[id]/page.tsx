@@ -731,9 +731,8 @@ export default function ProjectPage() {
                   }
                   
                   try {
-                    // Usar proxy para evitar CORS
-                    const proxyUrl = `/api/image-proxy?url=${encodeURIComponent(selectedImg.reference)}`;
-                    const response = await fetch(proxyUrl);
+                    // Intentar descarga directa primero
+                    const response = await fetch(selectedImg.reference);
                     
                     if (!response.ok) throw new Error('Error al descargar');
                     
