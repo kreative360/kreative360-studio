@@ -669,6 +669,76 @@ export default function ProjectPage() {
             Deseleccionar todo
           </button>
 
+          {/* 🆕 Botones de descarga individual - Solo cuando hay 1 imagen seleccionada */}
+          {selected.size === 1 && (
+            <>
+              <button
+                className="btn-zoom"
+                onClick={async () => {
+                  const selectedId = Array.from(selected)[0];
+                  const selectedImg = images.find(img => img.id === selectedId);
+                  if (!selectedImg) return;
+                  
+                  try {
+                    const response = await fetch(selectedImg.url);
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${selectedImg.asin || 'imagen'}.jpg`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                  } catch (error) {
+                    console.error('Error descargando imagen ASIN:', error);
+                  }
+                }}
+                style={{
+                  background: '#10b981',
+                  color: '#fff',
+                  borderRadius: 999,
+                }}
+              >
+                Descargar Imagen (ASIN)
+              </button>
+              
+              <button
+                className="btn-zoom"
+                onClick={async () => {
+                  const selectedId = Array.from(selected)[0];
+                  const selectedImg = images.find(img => img.id === selectedId);
+                  if (!selectedImg?.reference_url) {
+                    alert('Esta imagen no tiene una referencia asociada');
+                    return;
+                  }
+                  
+                  try {
+                    const response = await fetch(selectedImg.reference_url);
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `referencia_${selectedImg.asin || 'imagen'}.jpg`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                  } catch (error) {
+                    console.error('Error descargando referencia:', error);
+                  }
+                }}
+                style={{
+                  background: '#3b82f6',
+                  color: '#fff',
+                  borderRadius: 999,
+                }}
+              >
+                Descargar Imagen (Referencia)
+              </button>
+            </>
+          )}
+
           <button className="btn-zoom"
             onClick={() => downloadZip("reference")}
             style={{ background: "#000", color: "#fff", borderRadius: 999 }}>
