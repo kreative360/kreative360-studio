@@ -190,9 +190,33 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
 
     try {
       const canvas = canvasRef.current;
-      if (!canvas) throw new Error("Canvas no disponible");
+      const maskCanvas = maskCanvasRef.current;
       
-      const imageBase64 = canvas.toDataURL("image/jpeg", 1.0).split(",")[1];
+      if (!canvas || !maskCanvas || !originalImage) {
+        throw new Error("Canvas o imagen original no disponible");
+      }
+      
+      console.log("📏 Resolución original:", originalImage.width, "x", originalImage.height);
+      console.log("📏 Resolución canvas:", canvas.width, "x", canvas.height);
+      
+      // 🔧 SOLUCIÓN: Usar imagen original a resolución completa
+      const fullResCanvas = document.createElement('canvas');
+      fullResCanvas.width = originalImage.width;
+      fullResCanvas.height = originalImage.height;
+      const fullResCtx = fullResCanvas.getContext('2d', { willReadFrequently: true });
+      
+      if (!fullResCtx) throw new Error("No se pudo crear canvas de alta resolución");
+      
+      // Pintar fondo blanco
+      fullResCtx.fillStyle = '#FFFFFF';
+      fullResCtx.fillRect(0, 0, fullResCanvas.width, fullResCanvas.height);
+      
+      // Dibujar imagen original a resolución completa
+      fullResCtx.drawImage(originalImage, 0, 0);
+      
+      // Exportar imagen a resolución completa
+      const imageBase64 = fullResCanvas.toDataURL("image/jpeg", 1.0).split(",")[1];
+      console.log("✅ Imagen exportada a resolución completa");
       
       const isLocalEdit = hasPaintedArea();
       
@@ -201,18 +225,28 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
 
       if (isLocalEdit) {
         console.log("🎨 Edición LOCAL detectada");
-        const maskCanvas = maskCanvasRef.current;
-        if (!maskCanvas) throw new Error("Mask canvas no disponible");
         
-        const maskBase64 = maskCanvas.toDataURL("image/png").split(",")[1];
+        // Escalar la máscara a la resolución original
+        const fullResMask = document.createElement('canvas');
+        fullResMask.width = originalImage.width;
+        fullResMask.height = originalImage.height;
+        const fullResMaskCtx = fullResMask.getContext('2d');
+        
+        if (!fullResMaskCtx) throw new Error("No se pudo crear máscara de alta resolución");
+        
+        // Dibujar máscara escalada a resolución completa
+        fullResMaskCtx.drawImage(maskCanvas, 0, 0, fullResMask.width, fullResMask.height);
+        
+        const maskBase64 = fullResMask.toDataURL("image/png").split(",")[1];
+        console.log("✅ Máscara escalada a resolución completa");
         
         apiEndpoint = "/api/edit-image-local";
         bodyData = {
           imageBase64,
           maskBase64,
           editPrompt,
-          width: canvas.width,
-          height: canvas.height,
+          width: originalImage.width,
+          height: originalImage.height,
         };
       } else {
         console.log("🌍 Edición GLOBAL detectada");
@@ -220,8 +254,8 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
         bodyData = {
           imageBase64,
           editPrompt,
-          width: canvas.width,
-          height: canvas.height,
+          width: originalImage.width,
+          height: originalImage.height,
         };
       }
 
@@ -237,7 +271,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
         throw new Error(data.error || "Error editando imagen");
       }
 
-      console.log("✅ Imagen editada correctamente");
+      console.log("✅ Imagen editada correctamente a resolución:", data.image.width, "x", data.image.height);
       onSave(data.image.base64);
 
     } catch (error: any) {
