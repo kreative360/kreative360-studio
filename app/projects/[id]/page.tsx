@@ -1137,16 +1137,58 @@ export default function ProjectPage() {
               {isRegenerating ? "⏳ Regenerando..." : "🔄 Regenerar"}
             </button>
             <button
-              onClick={() => {
-                if (reviewModal?.currentImage) {
-                  // 🔧 CORRECCIÓN: Usar la imagen actual del reviewModal (más actualizada)
-                  const imageToEdit = reviewModal.currentImage.base64
-                    ? `data:image/jpeg;base64,${reviewModal.currentImage.base64}`
-                    : reviewModal.currentImage.url || "";
-                  setEditorImageUrl(imageToEdit);
-                  setEditorImageId(reviewModal.currentImage.id);
-                  setShowEditor(true);
+              onClick={async () => {
+                if (!reviewModal?.currentImage) return;
+                
+                const currentImg = reviewModal.currentImage;
+                console.log("🔍 Abriendo editor con imagen:", currentImg.id);
+                
+                let imageToEdit: string;
+                
+                // 🔧 SOLUCIÓN: SIEMPRE usar base64
+                if (currentImg.base64) {
+                  // Caso 1: Ya tenemos base64
+                  imageToEdit = `data:image/jpeg;base64,${currentImg.base64}`;
+                  console.log("✅ Usando base64 existente");
+                } else if (currentImg.url) {
+                  // Caso 2: Tenemos URL pero no base64, convertir a base64
+                  console.log("⚠️ No hay base64, descargando desde URL...");
+                  try {
+                    const response = await fetch(currentImg.url);
+                    const blob = await response.blob();
+                    const base64 = await new Promise<string>((resolve) => {
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        const result = reader.result as string;
+                        resolve(result.split(',')[1]);
+                      };
+                      reader.readAsDataURL(blob);
+                    });
+                    
+                    imageToEdit = `data:image/jpeg;base64,${base64}`;
+                    
+                    // Actualizar reviewModal con el base64
+                    setReviewModal({
+                      ...reviewModal,
+                      currentImage: { ...currentImg, base64 },
+                      imagesInReference: reviewModal.imagesInReference.map(img =>
+                        img.id === currentImg.id ? { ...img, base64 } : img
+                      ),
+                    });
+                    
+                    console.log("✅ Convertido a base64");
+                  } catch (error) {
+                    console.error("❌ Error convirtiendo a base64:", error);
+                    imageToEdit = currentImg.url;
+                  }
+                } else {
+                  console.error("❌ No hay ni base64 ni URL");
+                  return;
                 }
+                
+                setEditorImageUrl(imageToEdit);
+                setEditorImageId(currentImg.id);
+                setShowEditor(true);
               }}
               style={{
                 background: "#8b5cf6",
