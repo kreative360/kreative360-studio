@@ -138,9 +138,9 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
             
             console.log("🎨 Imagen procesada y dibujada con fondo blanco");
             
-            maskCtx.fillStyle = "black";
-            maskCtx.fillRect(0, 0, width, height);
-            console.log("🎭 Máscara inicializada");
+            // 🔧 CORRECCIÓN: Máscara transparente inicial (no negra)
+            maskCtx.clearRect(0, 0, width, height);
+            console.log("🎭 Máscara inicializada (transparente)");
             
             setIsLoading(false);
           });
@@ -196,8 +196,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
     
     const ctx = maskCanvas.getContext("2d");
     if (ctx) {
-      ctx.fillStyle = "black";
-      ctx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
+      ctx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
     }
   };
 
@@ -394,8 +393,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
                   maxHeight: "100%",
                   objectFit: "contain",
                   cursor: "crosshair",
-                  opacity: 0.4,
-                  mixBlendMode: "multiply",
+                  opacity: 0.5,
                   pointerEvents: isLoading || loadError ? "none" : "auto",
                 }}
               />
