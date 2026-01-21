@@ -364,14 +364,17 @@ export default function ProjectPage() {
         });
       }
       
+      // 🔧 Cerrar modal ANTES del alert
       setEditPreview(null);
+      setApprovingEdit(false);
+      
       alert("✅ Imagen editada guardada correctamente");
       
     } catch (error) {
       console.error("Error:", error);
-      alert("Error al guardar la edición");
-    } finally {
+      setEditPreview(null);
       setApprovingEdit(false);
+      alert("Error al guardar la edición");
     }
   };
 
