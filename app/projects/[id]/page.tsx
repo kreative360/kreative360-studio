@@ -681,17 +681,34 @@ export default function ProjectPage() {
                   
                   try {
                     const response = await fetch(selectedImg.url);
+                    
+                    if (!response.ok) throw new Error('Error al descargar');
+                    
                     const blob = await response.blob();
+                    
+                    // Detectar extensión del blob
+                    const contentType = blob.type;
+                    let extension = 'jpg';
+                    if (contentType.includes('png')) extension = 'png';
+                    else if (contentType.includes('webp')) extension = 'webp';
+                    else if (contentType.includes('jpeg') || contentType.includes('jpg')) extension = 'jpg';
+                    
+                    // Nombre con formato: ASIN_numeracion.extension
+                    const fileName = selectedImg.index !== undefined 
+                      ? `${selectedImg.asin || 'imagen'}_${selectedImg.index}.${extension}`
+                      : `${selectedImg.asin || 'imagen'}.${extension}`;
+                    
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = `${selectedImg.asin || 'imagen'}.jpg`;
+                    a.download = fileName;
                     document.body.appendChild(a);
                     a.click();
                     window.URL.revokeObjectURL(url);
                     document.body.removeChild(a);
                   } catch (error) {
                     console.error('Error descargando imagen ASIN:', error);
+                    alert('Error al descargar la imagen');
                   }
                 }}
                 style={{
@@ -714,18 +731,37 @@ export default function ProjectPage() {
                   }
                   
                   try {
-                    const response = await fetch(selectedImg.reference);
+                    // Usar proxy para evitar CORS
+                    const proxyUrl = `/api/image-proxy?url=${encodeURIComponent(selectedImg.reference)}`;
+                    const response = await fetch(proxyUrl);
+                    
+                    if (!response.ok) throw new Error('Error al descargar');
+                    
                     const blob = await response.blob();
+                    
+                    // Detectar extensión del blob
+                    const contentType = blob.type;
+                    let extension = 'jpg';
+                    if (contentType.includes('png')) extension = 'png';
+                    else if (contentType.includes('webp')) extension = 'webp';
+                    else if (contentType.includes('jpeg') || contentType.includes('jpg')) extension = 'jpg';
+                    
+                    // Nombre con formato: ASIN_numeracion.extension
+                    const fileName = selectedImg.index !== undefined 
+                      ? `${selectedImg.asin || 'imagen'}_${selectedImg.index}.${extension}`
+                      : `${selectedImg.asin || 'imagen'}.${extension}`;
+                    
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = `referencia_${selectedImg.asin || 'imagen'}.jpg`;
+                    a.download = fileName;
                     document.body.appendChild(a);
                     a.click();
                     window.URL.revokeObjectURL(url);
                     document.body.removeChild(a);
                   } catch (error) {
                     console.error('Error descargando referencia:', error);
+                    alert('Error al descargar la imagen de referencia. Intenta con el ZIP.');
                   }
                 }}
                 style={{
