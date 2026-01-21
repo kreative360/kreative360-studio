@@ -69,6 +69,9 @@ export default function ProjectPage() {
     editedBase64: string;
     imageId: string;
   } | null>(null);
+  
+  // 🆕 Estado para loader de aprobación
+  const [approvingEdit, setApprovingEdit] = useState(false);
 
   /* ======================================================
      CARGA DE IMÁGENES (REAL)
@@ -318,6 +321,8 @@ export default function ProjectPage() {
   const handleApproveEdit = async () => {
     if (!editPreview) return;
     
+    setApprovingEdit(true);
+    
     try {
       const res = await fetch("/api/projects/update-image", {
         method: "POST",
@@ -365,6 +370,8 @@ export default function ProjectPage() {
     } catch (error) {
       console.error("Error:", error);
       alert("Error al guardar la edición");
+    } finally {
+      setApprovingEdit(false);
     }
   };
 
@@ -1296,78 +1303,138 @@ export default function ProjectPage() {
             display: "flex",
             flexDirection: "column",
             zIndex: 10000,
-            padding: "40px 20px",
           }}
         >
-          <h2
-            style={{
-              color: "#fff",
-              textAlign: "center",
-              marginBottom: 30,
-              fontSize: 24,
-            }}
-          >
-            📸 Comparación: Original vs Editada
-          </h2>
-
+          {/* Header con botón X */}
           <div
             style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: 40,
-              flex: 1,
-              maxHeight: "calc(100vh - 220px)",
+              display: "flex",
+              justifyContent: "space-between",
               alignItems: "center",
+              padding: "20px 40px",
+              borderBottom: "1px solid rgba(255,255,255,0.1)",
             }}
           >
-            {/* Imagen Original */}
-            <div
+            <h2
               style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                height: "100%",
+                color: "#fff",
+                fontSize: 24,
+                margin: 0,
               }}
             >
-              <h3 style={{ color: "#fff", marginBottom: 16, fontSize: 18 }}>
-                🖼️ Original
-              </h3>
-              <img
-                src={editPreview.originalUrl}
-                style={{
-                  maxWidth: "100%",
-                  maxHeight: "100%",
-                  objectFit: "contain",
-                  borderRadius: 12,
-                  border: "3px solid rgba(255,255,255,0.3)",
-                }}
-                alt="Original"
-              />
-            </div>
+              📸 Comparación: Original vs Editada
+            </h2>
+            <button
+              onClick={() => setEditPreview(null)}
+              disabled={approvingEdit}
+              style={{
+                background: "transparent",
+                border: "2px solid #fff",
+                color: "#fff",
+                borderRadius: 8,
+                padding: "8px 16px",
+                fontSize: 18,
+                cursor: approvingEdit ? "not-allowed" : "pointer",
+                opacity: approvingEdit ? 0.5 : 1,
+              }}
+            >
+              ✕
+            </button>
+          </div>
 
-            {/* Imagen Editada */}
+          {/* Contenedor de imágenes */}
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "40px",
+              gap: 40,
+            }}
+          >
             <div
               style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                height: "100%",
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 40,
+                maxWidth: "1400px",
+                width: "100%",
               }}
             >
-              <h3 style={{ color: "#fff", marginBottom: 16, fontSize: 18 }}>
-                ✨ Editada
-              </h3>
-              <img
-                src={`data:image/jpeg;base64,${editPreview.editedBase64}`}
+              {/* Imagen Original */}
+              <div
                 style={{
-                  maxWidth: "100%",
-                  maxHeight: "100%",
-                  objectFit: "contain",
-                  borderRadius: 12,
-                  border: "3px solid #10b981",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
                 }}
-                alt="Editada"
-              />
+              >
+                <h3 style={{ color: "#fff", marginBottom: 16, fontSize: 16 }}>
+                  🖼️ Original
+                </h3>
+                <div
+                  style={{
+                    width: "100%",
+                    maxWidth: 500,
+                    aspectRatio: "1",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "#1a1a1a",
+                    borderRadius: 12,
+                    border: "3px solid rgba(255,255,255,0.2)",
+                    overflow: "hidden",
+                  }}
+                >
+                  <img
+                    src={editPreview.originalUrl}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "contain",
+                    }}
+                    alt="Original"
+                  />
+                </div>
+              </div>
+
+              {/* Imagen Editada */}
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                }}
+              >
+                <h3 style={{ color: "#fff", marginBottom: 16, fontSize: 16 }}>
+                  ✨ Editada
+                </h3>
+                <div
+                  style={{
+                    width: "100%",
+                    maxWidth: 500,
+                    aspectRatio: "1",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "#1a1a1a",
+                    borderRadius: 12,
+                    border: "3px solid #10b981",
+                    overflow: "hidden",
+                  }}
+                >
+                  <img
+                    src={`data:image/jpeg;base64,${editPreview.editedBase64}`}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "contain",
+                    }}
+                    alt="Editada"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1377,11 +1444,13 @@ export default function ProjectPage() {
               display: "flex",
               justifyContent: "center",
               gap: 20,
-              marginTop: 30,
+              padding: "30px 40px",
+              borderTop: "1px solid rgba(255,255,255,0.1)",
             }}
           >
             <button
               onClick={handleRejectEdit}
+              disabled={approvingEdit}
               style={{
                 background: "#ef4444",
                 color: "#fff",
@@ -1390,16 +1459,18 @@ export default function ProjectPage() {
                 padding: "14px 40px",
                 fontSize: 16,
                 fontWeight: 600,
-                cursor: "pointer",
+                cursor: approvingEdit ? "not-allowed" : "pointer",
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
+                opacity: approvingEdit ? 0.5 : 1,
               }}
             >
               ✕ Descartar cambios
             </button>
             <button
               onClick={handleApproveEdit}
+              disabled={approvingEdit}
               style={{
                 background: "#10b981",
                 color: "#fff",
@@ -1408,15 +1479,41 @@ export default function ProjectPage() {
                 padding: "14px 40px",
                 fontSize: 16,
                 fontWeight: 600,
-                cursor: "pointer",
+                cursor: approvingEdit ? "not-allowed" : "pointer",
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
+                opacity: approvingEdit ? 0.8 : 1,
               }}
             >
-              ✓ Usar esta versión
+              {approvingEdit ? (
+                <>
+                  <span
+                    style={{
+                      width: 16,
+                      height: 16,
+                      border: "2px solid #fff",
+                      borderTopColor: "transparent",
+                      borderRadius: "50%",
+                      animation: "spin 0.6s linear infinite",
+                    }}
+                  />
+                  Guardando...
+                </>
+              ) : (
+                <>✓ Usar esta versión</>
+              )}
             </button>
           </div>
+
+          {/* Animación del spinner */}
+          <style>
+            {`
+              @keyframes spin {
+                to { transform: rotate(360deg); }
+              }
+            `}
+          </style>
         </div>
       )}
     </div>
