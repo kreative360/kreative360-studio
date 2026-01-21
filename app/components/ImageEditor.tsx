@@ -91,52 +91,13 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
               return;
             }
             
-            // Dibujar imagen en canvas temporal para procesarla
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = width;
-            tempCanvas.height = height;
-            const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-            
-            if (!tempCtx) {
-              setLoadError("Error: No se pudo crear canvas temporal");
-              setIsLoading(false);
-              return;
-            }
-            
-            // Dibujar imagen original
-            tempCtx.drawImage(img, 0, 0, width, height);
-            
-            // 🔧 SOLUCIÓN DEFINITIVA: Reemplazar píxeles grises por blancos
-            const imageData = tempCtx.getImageData(0, 0, width, height);
-            const data = imageData.data;
-            
-            for (let i = 0; i < data.length; i += 4) {
-              const r = data[i];
-              const g = data[i + 1];
-              const b = data[i + 2];
-              
-              // Detectar grises (cuando R, G, B son similares y están en rango gris)
-              const isGray = Math.abs(r - g) < 10 && Math.abs(g - b) < 10 && Math.abs(r - b) < 10;
-              const isInGrayRange = r > 100 && r < 200; // Rango típico de grises
-              
-              if (isGray && isInGrayRange) {
-                // Convertir a blanco
-                data[i] = 255;     // R
-                data[i + 1] = 255; // G
-                data[i + 2] = 255; // B
-                // Alpha se mantiene igual
-              }
-            }
-            
-            // Pintar fondo blanco en canvas principal
+            // Pintar fondo blanco
             ctx.fillStyle = "#FFFFFF";
             ctx.fillRect(0, 0, width, height);
             
-            // Dibujar imagen procesada (con grises convertidos a blanco)
-            tempCtx.putImageData(imageData, 0, 0);
-            ctx.drawImage(tempCanvas, 0, 0);
-            
-            console.log("🎨 Imagen procesada y dibujada con fondo blanco");
+            // Dibujar imagen original SIN modificaciones
+            ctx.drawImage(img, 0, 0, width, height);
+            console.log("🎨 Imagen dibujada en canvas");
             
             // 🔧 CORRECCIÓN: Máscara transparente inicial (no negra)
             maskCtx.clearRect(0, 0, width, height);
