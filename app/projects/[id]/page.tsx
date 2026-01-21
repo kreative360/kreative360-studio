@@ -1139,6 +1139,7 @@ export default function ProjectPage() {
             <button
               onClick={() => {
                 if (reviewModal?.currentImage) {
+                  // 🔧 CORRECCIÓN: Usar la imagen actual del reviewModal (más actualizada)
                   const imageToEdit = reviewModal.currentImage.base64
                     ? `data:image/jpeg;base64,${reviewModal.currentImage.base64}`
                     : reviewModal.currentImage.url || "";
@@ -1283,11 +1284,7 @@ export default function ProjectPage() {
       {/* 🔧 EDITOR - CORREGIDO */}
       {showEditor && (
         <ImageEditor
-          imageUrl={
-            images.find(img => img.id === editorImageId)?.base64
-              ? `data:image/jpeg;base64,${images.find(img => img.id === editorImageId)?.base64}`
-              : editorImageUrl
-          }
+          imageUrl={editorImageUrl}
           onSave={handleSaveEdit}
           onCancel={() => setShowEditor(false)}
         />
