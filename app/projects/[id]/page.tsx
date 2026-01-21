@@ -708,13 +708,13 @@ export default function ProjectPage() {
                 onClick={async () => {
                   const selectedId = Array.from(selected)[0];
                   const selectedImg = images.find(img => img.id === selectedId);
-                  if (!selectedImg?.reference_url) {
+                  if (!selectedImg?.reference) {
                     alert('Esta imagen no tiene una referencia asociada');
                     return;
                   }
                   
                   try {
-                    const response = await fetch(selectedImg.reference_url);
+                    const response = await fetch(selectedImg.reference);
                     const blob = await response.blob();
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
