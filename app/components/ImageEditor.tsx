@@ -370,6 +370,8 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
                   maxHeight: "100%",
                   objectFit: "contain",
                   display: isLoading || loadError ? "none" : "block",
+                  border: "3px solid #ff6b6b",
+                  borderRadius: 8,
                 }}
               />
               

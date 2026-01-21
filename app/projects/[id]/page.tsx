@@ -1388,8 +1388,10 @@ export default function ProjectPage() {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              padding: "40px",
+              padding: "20px 40px",
               gap: 40,
+              overflow: "auto",
+              minHeight: 0,
             }}
           >
             <div
@@ -1397,7 +1399,7 @@ export default function ProjectPage() {
                 display: "grid",
                 gridTemplateColumns: "1fr 1fr",
                 gap: 40,
-                maxWidth: "1400px",
+                maxWidth: "1200px",
                 width: "100%",
               }}
             >
@@ -1415,7 +1417,7 @@ export default function ProjectPage() {
                 <div
                   style={{
                     width: "100%",
-                    maxWidth: 500,
+                    maxWidth: 450,
                     aspectRatio: "1",
                     display: "flex",
                     alignItems: "center",
@@ -1452,7 +1454,7 @@ export default function ProjectPage() {
                 <div
                   style={{
                     width: "100%",
-                    maxWidth: 500,
+                    maxWidth: 450,
                     aspectRatio: "1",
                     display: "flex",
                     alignItems: "center",
