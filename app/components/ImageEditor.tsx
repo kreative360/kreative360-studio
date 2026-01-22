@@ -20,6 +20,13 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
   const [referenceImage, setReferenceImage] = useState<string | null>(null);
   const [referenceImageName, setReferenceImageName] = useState<string | null>(null);
   
+  // 🆕 Estados para modal de comparación
+  const [showComparison, setShowComparison] = useState(false);
+  const [editedImageUrl, setEditedImageUrl] = useState<string | null>(null);
+  
+  // 🆕 Estado para guardar la máscara antes de editar
+  const [savedMaskData, setSavedMaskData] = useState<ImageData | null>(null);
+  
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const maskCanvasRef = useRef<HTMLCanvasElement>(null);
   const [originalImage, setOriginalImage] = useState<HTMLImageElement | null>(null);
@@ -103,7 +110,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
             ctx.drawImage(img, 0, 0, width, height);
             console.log("🎨 Imagen dibujada en canvas");
             
-            // 🔧 CORRECCIÓN: Máscara transparente inicial (no negra)
+            // Máscara transparente inicial
             maskCtx.clearRect(0, 0, width, height);
             console.log("🎭 Máscara inicializada (transparente)");
             
@@ -184,7 +191,6 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
     return false;
   };
 
-  // 🆕 Función para manejar imagen de referencia
   const handleReferenceImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -197,7 +203,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
     const reader = new FileReader();
     reader.onload = (event) => {
       const base64String = event.target?.result as string;
-      setReferenceImage(base64String); // ✅ GUARDAMOS EL BASE64 COMPLETO (con prefijo data:image)
+      setReferenceImage(base64String);
       setReferenceImageName(file.name);
     };
     reader.readAsDataURL(file);
@@ -208,6 +214,63 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
     setReferenceImageName(null);
   };
 
+  // 🆕 Guardar estado de la máscara antes de editar
+  const saveMaskState = () => {
+    const maskCanvas = maskCanvasRef.current;
+    if (!maskCanvas) return;
+    
+    const ctx = maskCanvas.getContext("2d");
+    if (ctx) {
+      const imageData = ctx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
+      setSavedMaskData(imageData);
+    }
+  };
+
+  // 🆕 Restaurar estado de la máscara
+  const restoreMaskState = () => {
+    const maskCanvas = maskCanvasRef.current;
+    if (!maskCanvas || !savedMaskData) return;
+    
+    const ctx = maskCanvas.getContext("2d");
+    if (ctx) {
+      ctx.putImageData(savedMaskData, 0, 0);
+    }
+  };
+
+  // 🆕 Volver al editor descartando cambios
+  const handleBackToEditor = () => {
+    setShowComparison(false);
+    setEditedImageUrl(null);
+    restoreMaskState();
+    // El prompt y la imagen de referencia se mantienen automáticamente
+  };
+
+  // 🆕 Confirmar y guardar la imagen editada
+  const handleConfirmEdit = async () => {
+    if (!editedImageUrl) return;
+    
+    try {
+      // Descargar imagen editada y convertir a base64
+      const editedImageResponse = await fetch(editedImageUrl);
+      const editedImageBlob = await editedImageResponse.blob();
+      
+      const editedImageBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64 = (reader.result as string).split(',')[1];
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(editedImageBlob);
+      });
+      
+      onSave(editedImageBase64);
+    } catch (error: any) {
+      console.error("❌ Error guardando:", error);
+      alert("❌ Error al guardar: " + error.message);
+    }
+  };
+
   const handleApply = async () => {
     if (!editPrompt.trim()) {
       alert("Escribe instrucciones para la edición");
@@ -215,6 +278,9 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
     }
 
     setIsProcessing(true);
+
+    // 🆕 Guardar estado de la máscara antes de editar
+    saveMaskState();
 
     try {
       const isLocalEdit = hasPaintedArea();
@@ -228,41 +294,29 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
         const maskCanvas = maskCanvasRef.current;
         if (!maskCanvas) throw new Error("Máscara no disponible");
         
-        // Convertir máscara a base64
         const maskDataUrl = maskCanvas.toDataURL("image/png");
         
-        // ✅ CORRECCIÓN: Usar nombres correctos de parámetros
         apiEndpoint = "/api/edit-image-local";
         bodyData = {
-          imageUrl: imageUrl,           // ✅ Cambié imageBase64 → imageUrl
-          maskDataUrl: maskDataUrl,     // ✅ Cambié maskBase64 → maskDataUrl
-          prompt: editPrompt,           // ✅ Cambié editPrompt → prompt
-          referenceImage: referenceImage || undefined, // 🆕 Imagen de referencia (base64 completo)
+          imageUrl: imageUrl,
+          maskDataUrl: maskDataUrl,
+          prompt: editPrompt,
+          referenceImage: referenceImage || undefined,
         };
         
-        console.log("📤 Enviando edición local:", {
-          imageUrl: imageUrl.substring(0, 50) + "...",
-          maskDataUrl: "presente",
-          prompt: editPrompt,
-          referenceImage: referenceImage ? "presente" : "no",
-        });
+        console.log("📤 Enviando edición local");
         
       } else {
         console.log("🌍 Edición GLOBAL detectada");
         
-        // ✅ CORRECCIÓN: Usar nombres correctos de parámetros
         apiEndpoint = "/api/edit-image-global";
         bodyData = {
-          imageUrl: imageUrl,           // ✅ Cambié imageBase64 → imageUrl
-          prompt: editPrompt,           // ✅ Cambié editPrompt → prompt
-          referenceImage: referenceImage || undefined, // 🆕 Imagen de referencia (base64 completo)
+          imageUrl: imageUrl,
+          prompt: editPrompt,
+          referenceImage: referenceImage || undefined,
         };
         
-        console.log("📤 Enviando edición global:", {
-          imageUrl: imageUrl.substring(0, 50) + "...",
-          prompt: editPrompt,
-          referenceImage: referenceImage ? "presente" : "no",
-        });
+        console.log("📤 Enviando edición global");
       }
 
       const response = await fetch(apiEndpoint, {
@@ -279,21 +333,9 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
 
       console.log("✅ Imagen editada correctamente");
       
-      // Descargar imagen editada y convertir a base64
-      const editedImageResponse = await fetch(data.editedImageUrl);
-      const editedImageBlob = await editedImageResponse.blob();
-      
-      const editedImageBase64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const base64 = (reader.result as string).split(',')[1];
-          resolve(base64);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(editedImageBlob);
-      });
-      
-      onSave(editedImageBase64);
+      // 🆕 Mostrar modal de comparación en lugar de guardar directamente
+      setEditedImageUrl(data.editedImageUrl);
+      setShowComparison(true);
 
     } catch (error: any) {
       console.error("❌ Error editando:", error);
@@ -302,6 +344,213 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
       setIsProcessing(false);
     }
   };
+
+  // 🆕 Modal de comparación
+  if (showComparison && editedImageUrl) {
+    return (
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.95)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 10001,
+        }}
+      >
+        <div
+          style={{
+            background: "#1a1a1a",
+            borderRadius: 16,
+            width: "95vw",
+            maxWidth: 1600,
+            height: "95vh",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+          }}
+        >
+          {/* Header */}
+          <div
+            style={{
+              padding: "24px 32px",
+              borderBottom: "1px solid #333",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ fontSize: 24 }}>📸</span>
+              <h3 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: "#fff" }}>
+                Comparación: Original vs Editada
+              </h3>
+            </div>
+            <button
+              onClick={() => setShowComparison(false)}
+              style={{
+                background: "transparent",
+                border: "1px solid #444",
+                borderRadius: 8,
+                fontSize: 18,
+                cursor: "pointer",
+                padding: "8px 12px",
+                color: "#999",
+              }}
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Comparación */}
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              gap: 32,
+              padding: 32,
+              overflow: "hidden",
+            }}
+          >
+            {/* Original */}
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 16 }}>🖼️</span>
+                <h4 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "#fff" }}>
+                  Original
+                </h4>
+              </div>
+              <div
+                style={{
+                  flex: 1,
+                  background: "#2a2a2a",
+                  borderRadius: 12,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  overflow: "hidden",
+                  border: "2px solid #444",
+                }}
+              >
+                <img
+                  src={imageUrl}
+                  alt="Original"
+                  style={{
+                    maxWidth: "100%",
+                    maxHeight: "100%",
+                    objectFit: "contain",
+                    borderRadius: 8,
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Editada */}
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 16 }}>✨</span>
+                <h4 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "#10b981" }}>
+                  Editada
+                </h4>
+              </div>
+              <div
+                style={{
+                  flex: 1,
+                  background: "#2a2a2a",
+                  borderRadius: 12,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  overflow: "hidden",
+                  border: "2px solid #10b981",
+                }}
+              >
+                <img
+                  src={editedImageUrl}
+                  alt="Editada"
+                  style={{
+                    maxWidth: "100%",
+                    maxHeight: "100%",
+                    objectFit: "contain",
+                    borderRadius: 8,
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Botones */}
+          <div
+            style={{
+              padding: "24px 32px",
+              borderTop: "1px solid #333",
+              display: "flex",
+              gap: 16,
+              justifyContent: "center",
+            }}
+          >
+            <button
+              onClick={handleBackToEditor}
+              style={{
+                padding: "14px 28px",
+                background: "transparent",
+                border: "2px solid #ef4444",
+                borderRadius: 10,
+                cursor: "pointer",
+                fontSize: 15,
+                fontWeight: 600,
+                color: "#ef4444",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              ✕ Descartar cambios y volver al editor
+            </button>
+            
+            <button
+              onClick={() => setShowComparison(false)}
+              style={{
+                padding: "14px 28px",
+                background: "transparent",
+                border: "2px solid #666",
+                borderRadius: 10,
+                cursor: "pointer",
+                fontSize: 15,
+                fontWeight: 600,
+                color: "#999",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              ✕ Descartar cambios
+            </button>
+
+            <button
+              onClick={handleConfirmEdit}
+              style={{
+                padding: "14px 28px",
+                background: "#10b981",
+                border: "none",
+                borderRadius: 10,
+                color: "#fff",
+                fontSize: 15,
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              ✓ Usar esta versión
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -546,7 +795,7 @@ Ejemplo: 'Cambia el color del producto a azul'"
               </p>
             </div>
 
-            {/* 🆕 Sección de imagen de referencia */}
+            {/* Sección de imagen de referencia */}
             <div>
               <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: "#333" }}>
                 📎 Imagen de referencia (opcional)
