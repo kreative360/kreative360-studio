@@ -725,13 +725,15 @@ export default function ProjectPage() {
                 onClick={async () => {
                   const selectedId = Array.from(selected)[0];
                   const selectedImg = images.find(img => img.id === selectedId);
-                  if (!selectedImg?.reference) {
+                  
+                  // Usar original_image_url que es la URL real de la referencia
+                  if (!selectedImg?.original_image_url) {
                     alert('Esta imagen no tiene una referencia asociada');
                     return;
                   }
                   
                   try {
-                    const response = await fetch(selectedImg.reference);
+                    const response = await fetch(selectedImg.original_image_url);
                     
                     if (!response.ok) throw new Error('Error al descargar');
                     
@@ -744,10 +746,10 @@ export default function ProjectPage() {
                     else if (contentType.includes('webp')) extension = 'webp';
                     else if (contentType.includes('jpeg') || contentType.includes('jpg')) extension = 'jpg';
                     
-                    // Nombre con formato: ASIN_numeracion.extension (igual que ASIN)
+                    // Nombre con código de referencia (reference) en lugar de ASIN
                     const fileName = selectedImg.index !== undefined 
-                      ? `${selectedImg.asin || 'imagen'}_${selectedImg.index}.${extension}`
-                      : `${selectedImg.asin || 'imagen'}.${extension}`;
+                      ? `${selectedImg.reference || 'referencia'}_${selectedImg.index}.${extension}`
+                      : `${selectedImg.reference || 'referencia'}.${extension}`;
                     
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
