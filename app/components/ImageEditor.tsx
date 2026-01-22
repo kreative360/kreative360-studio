@@ -233,7 +233,22 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
     
     const ctx = maskCanvas.getContext("2d");
     if (ctx) {
-      ctx.putImageData(savedMaskData, 0, 0);
+      // Si las dimensiones coinciden, restaurar directamente
+      if (savedMaskData.width === maskCanvas.width && savedMaskData.height === maskCanvas.height) {
+        ctx.putImageData(savedMaskData, 0, 0);
+      } else {
+        // Si las dimensiones cambiaron, escalar la máscara
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = savedMaskData.width;
+        tempCanvas.height = savedMaskData.height;
+        const tempCtx = tempCanvas.getContext('2d');
+        
+        if (tempCtx) {
+          tempCtx.putImageData(savedMaskData, 0, 0);
+          ctx.drawImage(tempCanvas, 0, 0, maskCanvas.width, maskCanvas.height);
+        }
+      }
+      console.log("🎭 Máscara restaurada");
     }
   };
 
@@ -244,22 +259,39 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
     
     // Restaurar la máscara después de que se cierre el modal
     setTimeout(() => {
-      restoreMaskState();
-      
-      // Forzar re-render del canvas
       const canvas = canvasRef.current;
       const maskCanvas = maskCanvasRef.current;
       
       if (canvas && maskCanvas && originalImage) {
+        // Recalcular dimensiones (igual que en useEffect)
+        const maxSize = 900;
+        let width = originalImage.width;
+        let height = originalImage.height;
+        
+        if (width > maxSize || height > maxSize) {
+          const ratio = Math.min(maxSize / width, maxSize / height);
+          width = width * ratio;
+          height = height * ratio;
+        }
+        
+        // Actualizar dimensiones del canvas
+        canvas.width = width;
+        canvas.height = height;
+        maskCanvas.width = width;
+        maskCanvas.height = height;
+        
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
         
         if (ctx) {
           // Redibujar la imagen original
           ctx.fillStyle = "#FFFFFF";
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(originalImage, 0, 0, canvas.width, canvas.height);
-          console.log("🎨 Canvas redibujado al volver al editor");
+          ctx.fillRect(0, 0, width, height);
+          ctx.drawImage(originalImage, 0, 0, width, height);
+          console.log("🎨 Canvas redibujado al volver al editor:", width, "x", height);
         }
+        
+        // Restaurar la máscara guardada
+        restoreMaskState();
       }
     }, 100);
   };
