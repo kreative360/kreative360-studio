@@ -87,7 +87,7 @@ IMPORTANTE: Debes CAMBIAR físicamente el objeto en la imagen, no solo ajustar c
 
     // Llamar a Gemini con imagen + máscara + referencia
     const model = genAI.getGenerativeModel({ 
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.5-flash-latest',
       generationConfig: {
         temperature: 1,
         topP: 0.95,
