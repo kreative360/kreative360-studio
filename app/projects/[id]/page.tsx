@@ -726,37 +726,52 @@ export default function ProjectPage() {
                   const selectedId = Array.from(selected)[0];
                   const selectedImg = images.find(img => img.id === selectedId);
                   
-                  if (!selectedImg?.original_image_url) {
-                    alert('Esta imagen no tiene una referencia asociada');
+                  if (!selectedImg) {
+                    alert('No se encontró la imagen');
                     return;
                   }
                   
                   try {
-                    // Detectar extensión de la URL
-                    const url = selectedImg.original_image_url;
+                    let blob: Blob;
                     let extension = 'jpg';
-                    if (url.includes('.png')) extension = 'png';
-                    else if (url.includes('.webp')) extension = 'webp';
-                    else if (url.includes('.jpeg') || url.includes('.jpg')) extension = 'jpg';
+                    
+                    // 🔧 CORRECCIÓN: Usar base64 si existe (versión editada), sino usar URL
+                    if (selectedImg.base64) {
+                      // Tiene ediciones aplicadas, usar base64
+                      const base64Response = await fetch(`data:image/jpeg;base64,${selectedImg.base64}`);
+                      blob = await base64Response.blob();
+                      extension = 'jpg'; // base64 siempre es jpeg
+                    } else if (selectedImg.url) {
+                      // No tiene ediciones, descargar desde URL usando proxy
+                      const url = selectedImg.url;
+                      
+                      // Detectar extensión de la URL
+                      if (url.includes('.png')) extension = 'png';
+                      else if (url.includes('.webp')) extension = 'webp';
+                      else if (url.includes('.jpeg') || url.includes('.jpg')) extension = 'jpg';
+                      
+                      // Usar endpoint API para evitar CORS
+                      const response = await fetch('/api/projects/download-reference', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                          imageUrl: selectedImg.url,
+                          fileName: `temp.${extension}`
+                        }),
+                      });
+                      
+                      if (!response.ok) throw new Error('Error al descargar');
+                      blob = await response.blob();
+                    } else {
+                      alert('Esta imagen no tiene una referencia válida');
+                      return;
+                    }
                     
                     // Nombre con código de referencia
                     const fileName = selectedImg.index !== undefined 
                       ? `${selectedImg.reference || 'referencia'}_${selectedImg.index}.${extension}`
                       : `${selectedImg.reference || 'referencia'}.${extension}`;
                     
-                    // Usar endpoint API para evitar CORS
-                    const response = await fetch('/api/projects/download-reference', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ 
-                        imageUrl: selectedImg.original_image_url,
-                        fileName: fileName
-                      }),
-                    });
-                    
-                    if (!response.ok) throw new Error('Error al descargar');
-                    
-                    const blob = await response.blob();
                     const downloadUrl = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = downloadUrl;
