@@ -196,8 +196,8 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
     
     const reader = new FileReader();
     reader.onload = (event) => {
-      const base64 = event.target?.result as string;
-      setReferenceImage(base64.split(',')[1]); // Solo el base64 sin el prefijo
+      const base64String = event.target?.result as string;
+      setReferenceImage(base64String); // ✅ GUARDAMOS EL BASE64 COMPLETO (con prefijo data:image)
       setReferenceImageName(file.name);
     };
     reader.readAsDataURL(file);
@@ -217,35 +217,6 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
     setIsProcessing(true);
 
     try {
-      const canvas = canvasRef.current;
-      const maskCanvas = maskCanvasRef.current;
-      
-      if (!canvas || !maskCanvas || !originalImage) {
-        throw new Error("Canvas o imagen original no disponible");
-      }
-      
-      console.log("📏 Resolución original:", originalImage.width, "x", originalImage.height);
-      console.log("📏 Resolución canvas:", canvas.width, "x", canvas.height);
-      
-      // 🔧 SOLUCIÓN: Usar imagen original a resolución completa
-      const fullResCanvas = document.createElement('canvas');
-      fullResCanvas.width = originalImage.width;
-      fullResCanvas.height = originalImage.height;
-      const fullResCtx = fullResCanvas.getContext('2d', { willReadFrequently: true });
-      
-      if (!fullResCtx) throw new Error("No se pudo crear canvas de alta resolución");
-      
-      // Pintar fondo blanco
-      fullResCtx.fillStyle = '#FFFFFF';
-      fullResCtx.fillRect(0, 0, fullResCanvas.width, fullResCanvas.height);
-      
-      // Dibujar imagen original a resolución completa
-      fullResCtx.drawImage(originalImage, 0, 0);
-      
-      // Exportar imagen a resolución completa
-      const imageBase64 = fullResCanvas.toDataURL("image/jpeg", 1.0).split(",")[1];
-      console.log("✅ Imagen exportada a resolución completa");
-      
       const isLocalEdit = hasPaintedArea();
       
       let apiEndpoint: string;
@@ -254,39 +225,44 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
       if (isLocalEdit) {
         console.log("🎨 Edición LOCAL detectada");
         
-        // Escalar la máscara a la resolución original
-        const fullResMask = document.createElement('canvas');
-        fullResMask.width = originalImage.width;
-        fullResMask.height = originalImage.height;
-        const fullResMaskCtx = fullResMask.getContext('2d');
+        const maskCanvas = maskCanvasRef.current;
+        if (!maskCanvas) throw new Error("Máscara no disponible");
         
-        if (!fullResMaskCtx) throw new Error("No se pudo crear máscara de alta resolución");
+        // Convertir máscara a base64
+        const maskDataUrl = maskCanvas.toDataURL("image/png");
         
-        // Dibujar máscara escalada a resolución completa
-        fullResMaskCtx.drawImage(maskCanvas, 0, 0, fullResMask.width, fullResMask.height);
-        
-        const maskBase64 = fullResMask.toDataURL("image/png").split(",")[1];
-        console.log("✅ Máscara escalada a resolución completa");
-        
+        // ✅ CORRECCIÓN: Usar nombres correctos de parámetros
         apiEndpoint = "/api/edit-image-local";
         bodyData = {
-          imageBase64,
-          maskBase64,
-          editPrompt,
-          width: originalImage.width,
-          height: originalImage.height,
-          referenceImage: referenceImage || undefined, // 🆕 Imagen de referencia
+          imageUrl: imageUrl,           // ✅ Cambié imageBase64 → imageUrl
+          maskDataUrl: maskDataUrl,     // ✅ Cambié maskBase64 → maskDataUrl
+          prompt: editPrompt,           // ✅ Cambié editPrompt → prompt
+          referenceImage: referenceImage || undefined, // 🆕 Imagen de referencia (base64 completo)
         };
+        
+        console.log("📤 Enviando edición local:", {
+          imageUrl: imageUrl.substring(0, 50) + "...",
+          maskDataUrl: "presente",
+          prompt: editPrompt,
+          referenceImage: referenceImage ? "presente" : "no",
+        });
+        
       } else {
         console.log("🌍 Edición GLOBAL detectada");
+        
+        // ✅ CORRECCIÓN: Usar nombres correctos de parámetros
         apiEndpoint = "/api/edit-image-global";
         bodyData = {
-          imageBase64,
-          editPrompt,
-          width: originalImage.width,
-          height: originalImage.height,
-          referenceImage: referenceImage || undefined, // 🆕 Imagen de referencia
+          imageUrl: imageUrl,           // ✅ Cambié imageBase64 → imageUrl
+          prompt: editPrompt,           // ✅ Cambié editPrompt → prompt
+          referenceImage: referenceImage || undefined, // 🆕 Imagen de referencia (base64 completo)
         };
+        
+        console.log("📤 Enviando edición global:", {
+          imageUrl: imageUrl.substring(0, 50) + "...",
+          prompt: editPrompt,
+          referenceImage: referenceImage ? "presente" : "no",
+        });
       }
 
       const response = await fetch(apiEndpoint, {
@@ -301,8 +277,23 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
         throw new Error(data.error || "Error editando imagen");
       }
 
-      console.log("✅ Imagen editada correctamente a resolución:", data.image.width, "x", data.image.height);
-      onSave(data.image.base64);
+      console.log("✅ Imagen editada correctamente");
+      
+      // Descargar imagen editada y convertir a base64
+      const editedImageResponse = await fetch(data.editedImageUrl);
+      const editedImageBlob = await editedImageResponse.blob();
+      
+      const editedImageBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64 = (reader.result as string).split(',')[1];
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(editedImageBlob);
+      });
+      
+      onSave(editedImageBase64);
 
     } catch (error: any) {
       console.error("❌ Error editando:", error);
@@ -601,7 +592,7 @@ Ejemplo: 'Cambia el color del producto a azul'"
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                     <img
-                      src={`data:image/jpeg;base64,${referenceImage}`}
+                      src={referenceImage}
                       alt="Referencia"
                       style={{
                         width: 60,
