@@ -241,8 +241,27 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
   const handleBackToEditor = () => {
     setShowComparison(false);
     setEditedImageUrl(null);
-    restoreMaskState();
-    // El prompt y la imagen de referencia se mantienen automáticamente
+    
+    // Restaurar la máscara después de que se cierre el modal
+    setTimeout(() => {
+      restoreMaskState();
+      
+      // Forzar re-render del canvas
+      const canvas = canvasRef.current;
+      const maskCanvas = maskCanvasRef.current;
+      
+      if (canvas && maskCanvas && originalImage) {
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        
+        if (ctx) {
+          // Redibujar la imagen original
+          ctx.fillStyle = "#FFFFFF";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(originalImage, 0, 0, canvas.width, canvas.height);
+          console.log("🎨 Canvas redibujado al volver al editor");
+        }
+      }
+    }, 100);
   };
 
   // 🆕 Confirmar y guardar la imagen editada
@@ -374,7 +393,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
           {/* Header */}
           <div
             style={{
-              padding: "24px 32px",
+              padding: "20px 24px",
               borderBottom: "1px solid #333",
               display: "flex",
               justifyContent: "space-between",
@@ -383,7 +402,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
           >
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <span style={{ fontSize: 24 }}>📸</span>
-              <h3 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: "#fff" }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: "#fff" }}>
                 Comparación: Original vs Editada
               </h3>
             </div>
@@ -391,12 +410,11 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
               onClick={() => setShowComparison(false)}
               style={{
                 background: "transparent",
-                border: "1px solid #444",
-                borderRadius: 8,
-                fontSize: 18,
+                border: "none",
+                fontSize: 24,
                 cursor: "pointer",
-                padding: "8px 12px",
-                color: "#999",
+                padding: 4,
+                color: "#fff",
               }}
             >
               ✕
@@ -408,15 +426,15 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
             style={{
               flex: 1,
               display: "flex",
-              gap: 32,
-              padding: 32,
+              gap: 24,
+              padding: 24,
               overflow: "hidden",
             }}
           >
             {/* Original */}
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 16 }}>🖼️</span>
+                <span style={{ fontSize: 18 }}>🖼️</span>
                 <h4 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "#fff" }}>
                   Original
                 </h4>
@@ -449,7 +467,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
             {/* Editada */}
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 16 }}>✨</span>
+                <span style={{ fontSize: 18 }}>✨</span>
                 <h4 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "#10b981" }}>
                   Editada
                 </h4>
@@ -483,27 +501,24 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
           {/* Botones */}
           <div
             style={{
-              padding: "24px 32px",
+              padding: "20px 32px",
               borderTop: "1px solid #333",
               display: "flex",
-              gap: 16,
+              gap: 12,
               justifyContent: "center",
             }}
           >
             <button
               onClick={handleBackToEditor}
               style={{
-                padding: "14px 28px",
-                background: "transparent",
-                border: "2px solid #ef4444",
-                borderRadius: 10,
+                padding: "16px 24px",
+                background: "#ef4444",
+                border: "none",
+                borderRadius: 8,
                 cursor: "pointer",
-                fontSize: 15,
+                fontSize: 14,
                 fontWeight: 600,
-                color: "#ef4444",
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
+                color: "#fff",
               }}
             >
               ✕ Descartar cambios y volver al editor
@@ -512,17 +527,14 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
             <button
               onClick={() => setShowComparison(false)}
               style={{
-                padding: "14px 28px",
-                background: "transparent",
-                border: "2px solid #666",
-                borderRadius: 10,
+                padding: "16px 24px",
+                background: "#ef4444",
+                border: "none",
+                borderRadius: 8,
                 cursor: "pointer",
-                fontSize: 15,
+                fontSize: 14,
                 fontWeight: 600,
-                color: "#999",
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
+                color: "#fff",
               }}
             >
               ✕ Descartar cambios
@@ -531,17 +543,14 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
             <button
               onClick={handleConfirmEdit}
               style={{
-                padding: "14px 28px",
+                padding: "16px 24px",
                 background: "#10b981",
                 border: "none",
-                borderRadius: 10,
+                borderRadius: 8,
                 color: "#fff",
-                fontSize: 15,
+                fontSize: 14,
                 fontWeight: 600,
                 cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
               }}
             >
               ✓ Usar esta versión
