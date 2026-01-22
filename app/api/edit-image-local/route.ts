@@ -1,7 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const API_KEY = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+if (!API_KEY) throw new Error('Falta GOOGLE_API_KEY o GEMINI_API_KEY');
+
+const genAI = new GoogleGenerativeAI(API_KEY);
+
+// =========================
+// Utils
+// =========================
+function isBase64(ref: string) {
+  return ref.startsWith('data:image/') || /^[A-Za-z0-9+/=]+$/.test(ref.slice(0, 40));
+}
+
+async function refToBase64(ref: string): Promise<string> {
+  if (isBase64(ref)) {
+    return ref.replace(/^data:image\/\w+;base64,/, '');
+  }
+
+  const res = await fetch(ref);
+  if (!res.ok) {
+    throw new Error(`No se pudo descargar la imagen: ${ref}`);
+  }
+
+  const buf = Buffer.from(await res.arrayBuffer());
+  return buf.toString('base64');
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,108 +39,107 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('🎨 [LOCAL EDIT] Iniciando edición local con máscara');
-    console.log('📷 Imagen original:', imageUrl.substring(0, 100));
-    console.log('🖌️ Máscara recibida (base64)');
     console.log('📝 Prompt:', prompt);
     console.log('🖼️ Imagen de referencia:', referenceImage ? 'SÍ adjuntada' : 'NO adjuntada');
 
-    // Fetch de la imagen original
-    const imageResponse = await fetch(imageUrl);
-    if (!imageResponse.ok) {
-      throw new Error('No se pudo obtener la imagen');
-    }
-    const imageBuffer = await imageResponse.arrayBuffer();
-    const base64Image = Buffer.from(imageBuffer).toString('base64');
+    // Convertir imagen original a base64
+    const imageBase64 = await refToBase64(imageUrl);
+    
+    // Convertir máscara a base64
+    const maskBase64 = await refToBase64(maskDataUrl);
 
-    // Extraer base64 de la máscara
-    const maskBase64 = maskDataUrl.split(',')[1];
+    // Construir el prompt mejorado para edición local
+    let finalPrompt = `INSTRUCCIONES DE EDICIÓN LOCAL:
+Vas a editar SOLO el área específica marcada en una imagen.
 
-    // Preparar las partes del contenido para Gemini
-    const parts: any[] = [];
+LA PRIMERA IMAGEN es la imagen original completa.
+LA SEGUNDA IMAGEN es una máscara que muestra en ROJO el área exacta que debes editar.
+${referenceImage ? 'LA TERCERA IMAGEN es la imagen de referencia para el reemplazo.' : ''}
 
-    // Construir el prompt mejorado
-    let enhancedPrompt = `Edita ÚNICAMENTE el área marcada en blanco en la máscara. ${prompt}`;
+ÁREA A EDITAR:
+- Solo modifica las áreas marcadas en ROJO en la máscara
+- El resto de la imagen NO debe cambiar en absoluto
 
-    if (referenceImage) {
-      enhancedPrompt = `INSTRUCCIONES IMPORTANTES:
-1. Observa la TERCERA IMAGEN adjunta (la imagen de referencia)
-2. IDENTIFICA el objeto principal en la imagen de referencia
-3. En la PRIMERA IMAGEN (la imagen a editar), localiza el área marcada en BLANCO en la SEGUNDA IMAGEN (la máscara)
-4. REEMPLAZA el objeto en esa área por el objeto de la imagen de referencia
-5. Mantén el estilo, iluminación y perspectiva de la imagen original
-6. El objeto reemplazado debe verse natural e integrado en la escena
-7. NO modifiques las áreas en NEGRO de la máscara
+INSTRUCCIONES DEL USUARIO:
+${prompt}
 
-PROMPT DEL USUARIO: ${prompt}
+IMPORTANTE:
+1. Identifica el área roja en la máscara (SEGUNDA IMAGEN)
+2. ${referenceImage ? 'Reemplaza el objeto en esa área por el objeto de la imagen de referencia (TERCERA IMAGEN)' : 'Modifica solo esa área según las instrucciones'}
+3. NO toques ninguna otra parte de la imagen
+4. Mantén las áreas NO marcadas exactamente iguales
+5. Integra el cambio naturalmente con iluminación, perspectiva y estilo
+6. El resultado debe verse profesional y sin artefactos
+7. Mantén la misma resolución que la imagen original
 
-IMPORTANTE: Debes CAMBIAR físicamente el objeto en la imagen, no solo ajustar colores o estilos.`;
+GENERA LA IMAGEN EDITADA AHORA, editando SOLO el área roja de la máscara.`;
 
-      console.log('✨ Prompt mejorado con imagen de referencia');
-    }
+    console.log('✨ Prompt construido para edición local');
 
-    // Añadir el prompt
-    parts.push({ text: enhancedPrompt });
+    // Preparar las partes para Gemini
+    const parts: any[] = [{ text: finalPrompt }];
 
-    // Añadir la imagen original (PRIMERA IMAGEN)
+    // Añadir imagen original (PRIMERA IMAGEN)
     parts.push({
       inlineData: {
-        mimeType: 'image/png',
-        data: base64Image,
+        data: imageBase64,
+        mimeType: 'image/jpeg',
       },
     });
 
-    // Añadir la máscara (SEGUNDA IMAGEN)
+    // Añadir máscara (SEGUNDA IMAGEN)
     parts.push({
       inlineData: {
-        mimeType: 'image/png',
         data: maskBase64,
+        mimeType: 'image/png',
       },
     });
 
-    // Añadir la imagen de referencia si existe (TERCERA IMAGEN)
+    // Añadir imagen de referencia si existe (TERCERA IMAGEN)
     if (referenceImage) {
-      const base64Data = referenceImage.split(',')[1];
+      const refBase64 = await refToBase64(referenceImage);
       parts.push({
         inlineData: {
-          mimeType: 'image/png',
-          data: base64Data,
+          data: refBase64,
+          mimeType: 'image/jpeg',
         },
       });
       console.log('🖼️ Imagen de referencia añadida al request');
     }
 
-    // Llamar a Gemini con imagen + máscara + referencia
-    const model = genAI.getGenerativeModel({ 
-      model: 'gemini-2.5-flash-latest',
+    // Llamar a Gemini con el modelo correcto
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.5-flash-image',
+    });
+
+    console.log('🤖 Enviando a Gemini 2.5 Flash Image...');
+    
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts }],
       generationConfig: {
-        temperature: 1,
-        topP: 0.95,
-        topK: 40,
-        maxOutputTokens: 8192,
+        maxOutputTokens: 2048,
       },
     });
 
-    console.log('🤖 Enviando a Gemini Flash 2.0...');
-    const result = await model.generateContent(parts);
-    const response = result.response;
-    const generatedText = response.text();
-
     console.log('✅ Respuesta de Gemini recibida');
 
-    // Extraer URL de la imagen generada
-    const imageUrlMatch = generatedText.match(/https:\/\/[^\s)]+\.(?:png|jpg|jpeg|webp)/i);
-    
-    if (!imageUrlMatch) {
-      console.error('❌ No se encontró URL de imagen en la respuesta');
-      console.log('Respuesta completa:', generatedText);
+    // Extraer la imagen generada
+    const img = result.response?.candidates?.[0]?.content?.parts?.find(
+      (p: any) => p.inlineData && p.inlineData.mimeType.startsWith('image/')
+    );
+
+    if (!img) {
+      console.error('❌ Gemini no devolvió ninguna imagen');
       return NextResponse.json(
-        { error: 'No se generó una imagen válida' },
+        { error: 'Gemini no generó una imagen válida' },
         { status: 500 }
       );
     }
 
-    const editedImageUrl = imageUrlMatch[0];
-    console.log('🎨 Imagen editada:', editedImageUrl.substring(0, 100));
+    console.log('🎨 Imagen editada generada correctamente');
+
+    // Convertir a data URL para el frontend
+    const editedImageUrl = `data:${img.inlineData.mimeType};base64,${img.inlineData.data}`;
 
     return NextResponse.json({
       success: true,

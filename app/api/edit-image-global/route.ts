@@ -1,7 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const API_KEY = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+if (!API_KEY) throw new Error('Falta GOOGLE_API_KEY o GEMINI_API_KEY');
+
+const genAI = new GoogleGenerativeAI(API_KEY);
+
+// =========================
+// Utils
+// =========================
+function isBase64(ref: string) {
+  return ref.startsWith('data:image/') || /^[A-Za-z0-9+/=]+$/.test(ref.slice(0, 40));
+}
+
+async function refToBase64(ref: string): Promise<string> {
+  if (isBase64(ref)) {
+    return ref.replace(/^data:image\/\w+;base64,/, '');
+  }
+
+  const res = await fetch(ref);
+  if (!res.ok) {
+    throw new Error(`No se pudo descargar la imagen: ${ref}`);
+  }
+
+  const buf = Buffer.from(await res.arrayBuffer());
+  return buf.toString('base64');
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,94 +39,94 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('🌐 [GLOBAL EDIT] Iniciando edición global');
-    console.log('📷 Imagen original:', imageUrl.substring(0, 100));
     console.log('📝 Prompt:', prompt);
     console.log('🖼️ Imagen de referencia:', referenceImage ? 'SÍ adjuntada' : 'NO adjuntada');
 
-    // Fetch de la imagen original
-    const imageResponse = await fetch(imageUrl);
-    if (!imageResponse.ok) {
-      throw new Error('No se pudo obtener la imagen');
-    }
-    const imageBuffer = await imageResponse.arrayBuffer();
-    const base64Image = Buffer.from(imageBuffer).toString('base64');
+    // Convertir imagen original a base64
+    const imageBase64 = await refToBase64(imageUrl);
 
-    // Preparar las partes del contenido para Gemini
-    const parts: any[] = [];
-
-    // Construir el prompt mejorado
-    let enhancedPrompt = prompt;
+    // Construir el prompt mejorado para edición
+    let finalPrompt = prompt;
 
     if (referenceImage) {
-      enhancedPrompt = `INSTRUCCIONES IMPORTANTES:
-1. Observa la SEGUNDA IMAGEN adjunta (la imagen de referencia)
-2. IDENTIFICA el objeto principal en la imagen de referencia
-3. En la PRIMERA IMAGEN (la imagen a editar), REEMPLAZA completamente el objeto mencionado en el prompt por el objeto de la imagen de referencia
-4. Mantén el estilo, iluminación y perspectiva de la imagen original
-5. El objeto reemplazado debe verse natural e integrado en la escena
+      finalPrompt = `INSTRUCCIONES DE EDICIÓN:
+Vas a editar una imagen según estas instrucciones específicas.
 
-PROMPT DEL USUARIO: ${prompt}
+LA PRIMERA IMAGEN es la imagen original que debes editar.
+${referenceImage ? 'LA SEGUNDA IMAGEN es la imagen de referencia que debes usar para el reemplazo.' : ''}
 
-IMPORTANTE: Debes CAMBIAR físicamente el objeto en la imagen, no solo ajustar colores o estilos.`;
+INSTRUCCIONES DEL USUARIO:
+${prompt}
+
+IMPORTANTE:
+1. Identifica el objeto/elemento mencionado en las instrucciones en la imagen original
+2. ${referenceImage ? 'Reemplázalo exactamente por el objeto de la imagen de referencia' : 'Modifícalo según las instrucciones'}
+3. Mantén el resto de la imagen sin cambios
+4. Integra el cambio de forma natural con la iluminación, perspectiva y estilo de la imagen original
+5. El resultado debe verse profesional y sin artefactos
+6. Mantén la misma resolución y calidad que la imagen original
+
+GENERA LA IMAGEN EDITADA AHORA.`;
 
       console.log('✨ Prompt mejorado con imagen de referencia');
     }
 
-    // Añadir el prompt
-    parts.push({ text: enhancedPrompt });
+    // Preparar las partes para Gemini
+    const parts: any[] = [{ text: finalPrompt }];
 
-    // Añadir la imagen original (PRIMERA IMAGEN)
+    // Añadir imagen original (PRIMERA IMAGEN)
     parts.push({
       inlineData: {
-        mimeType: 'image/png',
-        data: base64Image,
+        data: imageBase64,
+        mimeType: 'image/jpeg',
       },
     });
 
-    // Añadir la imagen de referencia si existe (SEGUNDA IMAGEN)
+    // Añadir imagen de referencia si existe (SEGUNDA IMAGEN)
     if (referenceImage) {
-      const base64Data = referenceImage.split(',')[1];
+      const refBase64 = await refToBase64(referenceImage);
       parts.push({
         inlineData: {
-          mimeType: 'image/png',
-          data: base64Data,
+          data: refBase64,
+          mimeType: 'image/jpeg',
         },
       });
       console.log('🖼️ Imagen de referencia añadida al request');
     }
 
-    // Llamar a Gemini con imagen original + referencia
-    const model = genAI.getGenerativeModel({ 
-      model: 'gemini-2.5-flash-latest',
+    // Llamar a Gemini con el modelo correcto
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.5-flash-image',
+    });
+
+    console.log('🤖 Enviando a Gemini 2.5 Flash Image...');
+    
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts }],
       generationConfig: {
-        temperature: 1,
-        topP: 0.95,
-        topK: 40,
-        maxOutputTokens: 8192,
+        maxOutputTokens: 2048,
       },
     });
 
-    console.log('🤖 Enviando a Gemini Flash 2.0...');
-    const result = await model.generateContent(parts);
-    const response = result.response;
-    const generatedText = response.text();
-
     console.log('✅ Respuesta de Gemini recibida');
 
-    // Extraer URL de la imagen generada
-    const imageUrlMatch = generatedText.match(/https:\/\/[^\s)]+\.(?:png|jpg|jpeg|webp)/i);
-    
-    if (!imageUrlMatch) {
-      console.error('❌ No se encontró URL de imagen en la respuesta');
-      console.log('Respuesta completa:', generatedText);
+    // Extraer la imagen generada
+    const img = result.response?.candidates?.[0]?.content?.parts?.find(
+      (p: any) => p.inlineData && p.inlineData.mimeType.startsWith('image/')
+    );
+
+    if (!img) {
+      console.error('❌ Gemini no devolvió ninguna imagen');
       return NextResponse.json(
-        { error: 'No se generó una imagen válida' },
+        { error: 'Gemini no generó una imagen válida' },
         { status: 500 }
       );
     }
 
-    const editedImageUrl = imageUrlMatch[0];
-    console.log('🎨 Imagen editada:', editedImageUrl.substring(0, 100));
+    console.log('🎨 Imagen editada generada correctamente');
+
+    // Convertir a data URL para el frontend
+    const editedImageUrl = `data:${img.inlineData.mimeType};base64,${img.inlineData.data}`;
 
     return NextResponse.json({
       success: true,
