@@ -16,6 +16,10 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   
+  // 🆕 Estados para imagen de referencia
+  const [referenceImage, setReferenceImage] = useState<string | null>(null);
+  const [referenceImageName, setReferenceImageName] = useState<string | null>(null);
+  
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const maskCanvasRef = useRef<HTMLCanvasElement>(null);
   const [originalImage, setOriginalImage] = useState<HTMLImageElement | null>(null);
@@ -180,6 +184,30 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
     return false;
   };
 
+  // 🆕 Función para manejar imagen de referencia
+  const handleReferenceImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    if (!file.type.startsWith('image/')) {
+      alert('Por favor selecciona una imagen válida');
+      return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      setReferenceImage(base64.split(',')[1]); // Solo el base64 sin el prefijo
+      setReferenceImageName(file.name);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const removeReferenceImage = () => {
+    setReferenceImage(null);
+    setReferenceImageName(null);
+  };
+
   const handleApply = async () => {
     if (!editPrompt.trim()) {
       alert("Escribe instrucciones para la edición");
@@ -247,6 +275,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
           editPrompt,
           width: originalImage.width,
           height: originalImage.height,
+          referenceImage: referenceImage || undefined, // 🆕 Imagen de referencia
         };
       } else {
         console.log("🌍 Edición GLOBAL detectada");
@@ -256,6 +285,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
           editPrompt,
           width: originalImage.width,
           height: originalImage.height,
+          referenceImage: referenceImage || undefined, // 🆕 Imagen de referencia
         };
       }
 
@@ -493,6 +523,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
               display: "flex",
               flexDirection: "column",
               gap: 20,
+              overflowY: "auto",
             }}
           >
             <div>
@@ -522,6 +553,93 @@ Ejemplo: 'Cambia el color del producto a azul'"
               <p style={{ fontSize: 11, color: "#999", textAlign: "right", margin: "8px 0 0 0" }}>
                 {editPrompt.length}/500
               </p>
+            </div>
+
+            {/* 🆕 Sección de imagen de referencia */}
+            <div>
+              <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: "#333" }}>
+                📎 Imagen de referencia (opcional)
+              </p>
+              
+              {!referenceImage ? (
+                <label
+                  style={{
+                    display: "block",
+                    padding: "16px",
+                    background: "#fff",
+                    border: "2px dashed #ddd",
+                    borderRadius: 8,
+                    textAlign: "center",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.borderColor = "#ff6b6b"}
+                  onMouseLeave={(e) => e.currentTarget.style.borderColor = "#ddd"}
+                >
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleReferenceImageUpload}
+                    style={{ display: "none" }}
+                  />
+                  <span style={{ fontSize: 13, color: "#666" }}>
+                    Click para subir imagen
+                  </span>
+                  <br />
+                  <span style={{ fontSize: 11, color: "#999", marginTop: 4 }}>
+                    Ejemplo: una plancha específica para reemplazar
+                  </span>
+                </label>
+              ) : (
+                <div
+                  style={{
+                    background: "#fff",
+                    border: "1px solid #e5e5e5",
+                    borderRadius: 8,
+                    padding: 12,
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                    <img
+                      src={`data:image/jpeg;base64,${referenceImage}`}
+                      alt="Referencia"
+                      style={{
+                        width: 60,
+                        height: 60,
+                        objectFit: "cover",
+                        borderRadius: 6,
+                        border: "1px solid #e5e5e5",
+                      }}
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 12, fontWeight: 500, color: "#333", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {referenceImageName}
+                      </p>
+                      <p style={{ fontSize: 11, color: "#999", margin: "4px 0 0 0" }}>
+                        Imagen cargada ✓
+                      </p>
+                    </div>
+                    <button
+                      onClick={removeReferenceImage}
+                      style={{
+                        background: "#fee",
+                        border: "none",
+                        borderRadius: 6,
+                        padding: "6px 12px",
+                        cursor: "pointer",
+                        fontSize: 11,
+                        color: "#e74c3c",
+                        fontWeight: 500,
+                      }}
+                    >
+                      ✕ Quitar
+                    </button>
+                  </div>
+                  <p style={{ fontSize: 10, color: "#999", margin: 0, fontStyle: "italic" }}>
+                    💡 Menciona esta imagen en tus instrucciones. Ej: "reemplaza la plancha por la imagen adjunta"
+                  </p>
+                </div>
+              )}
             </div>
 
             <div style={{ flex: 1 }} />

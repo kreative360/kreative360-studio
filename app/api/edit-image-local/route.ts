@@ -8,7 +8,7 @@ export async function POST(request: Request) {
   try {
     console.log("🎨 Iniciando edición local con Gemini...");
 
-    const { imageBase64, maskBase64, editPrompt, width, height } = await request.json();
+    const { imageBase64, maskBase64, editPrompt, width, height, referenceImage } = await request.json();
 
     if (!imageBase64 || !maskBase64 || !editPrompt) {
       return NextResponse.json(
@@ -20,6 +20,7 @@ export async function POST(request: Request) {
     console.log("📦 Datos recibidos:", {
       hasImage: !!imageBase64,
       hasMask: !!maskBase64,
+      hasReferenceImage: !!referenceImage, // 🆕
       prompt: editPrompt,
     });
 
@@ -27,8 +28,8 @@ export async function POST(request: Request) {
       model: "gemini-2.5-flash-image",
     });
 
-    // ✨ CLAVE: Prompt mejorado igual que la herramienta original
-    const enhancedPrompt = `Edit this image: ${editPrompt}
+    // ✨ PROMPT mejorado con referencia si existe
+    let enhancedPrompt = `Edit this image: ${editPrompt}
 
 IMPORTANT RULES:
 - Only modify the areas marked in white in the mask
@@ -36,6 +37,17 @@ IMPORTANT RULES:
 - Maintain the same composition, lighting, and perspective
 - The mask indicates where to apply changes
 - Areas in black in the mask should remain untouched`;
+
+    // 🆕 Si hay imagen de referencia, añadir instrucciones adicionales
+    if (referenceImage) {
+      enhancedPrompt += `
+
+REFERENCE IMAGE PROVIDED:
+- An additional reference image has been provided
+- Use this reference image as a guide for the modifications
+- Match the style, appearance, and details from the reference image
+- Apply the reference to the masked areas only`;
+    }
 
     const parts: any = [
       { text: enhancedPrompt },
@@ -52,6 +64,17 @@ IMPORTANT RULES:
         },
       },
     ];
+
+    // 🆕 Añadir imagen de referencia si existe
+    if (referenceImage) {
+      parts.push({
+        inlineData: {
+          data: referenceImage,
+          mimeType: "image/jpeg",
+        },
+      });
+      console.log("🖼️ Imagen de referencia incluida en la petición");
+    }
 
     console.log("🔮 Generando con Gemini...");
 
@@ -90,6 +113,7 @@ IMPORTANT RULES:
         prompt: enhancedPrompt,
         originalPrompt: editPrompt,
         hasMask: true,
+        hasReferenceImage: !!referenceImage, // 🆕
       },
     });
 

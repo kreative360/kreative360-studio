@@ -6,7 +6,7 @@ const genAI = new GoogleGenerativeAI(API_KEY!);
 
 export async function POST(request: Request) {
   try {
-    const { imageBase64, editPrompt, width, height } = await request.json();
+    const { imageBase64, editPrompt, width, height, referenceImage } = await request.json();
 
     if (!imageBase64 || !editPrompt) {
       return NextResponse.json(
@@ -16,13 +16,31 @@ export async function POST(request: Request) {
     }
 
     console.log("🎨 Editando con Gemini (Global):", editPrompt);
+    console.log("📦 Datos recibidos:", {
+      hasImage: !!imageBase64,
+      hasReferenceImage: !!referenceImage, // 🆕
+      prompt: editPrompt,
+    });
 
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash-image",
     });
 
+    // 🆕 Mejorar prompt si hay imagen de referencia
+    let enhancedPrompt = editPrompt;
+    
+    if (referenceImage) {
+      enhancedPrompt = `${editPrompt}
+
+REFERENCE IMAGE PROVIDED:
+- An additional reference image has been provided
+- Use this reference image as a guide for the modifications
+- Match the style, appearance, and details from the reference image
+- Apply the reference throughout the entire image`;
+    }
+
     const parts: any = [
-      { text: editPrompt },
+      { text: enhancedPrompt },
       {
         inlineData: {
           data: imageBase64,
@@ -30,6 +48,17 @@ export async function POST(request: Request) {
         },
       },
     ];
+
+    // 🆕 Añadir imagen de referencia si existe
+    if (referenceImage) {
+      parts.push({
+        inlineData: {
+          data: referenceImage,
+          mimeType: "image/jpeg",
+        },
+      });
+      console.log("🖼️ Imagen de referencia incluida en la petición");
+    }
 
     // Llamada directa con array de parts
     const result = await model.generateContent(parts);
@@ -55,6 +84,12 @@ export async function POST(request: Request) {
         base64: img.inlineData.data,
         width,
         height,
+      },
+      metadata: {
+        model: "gemini-2.5-flash-image",
+        prompt: enhancedPrompt,
+        originalPrompt: editPrompt,
+        hasReferenceImage: !!referenceImage, // 🆕
       },
     });
 
