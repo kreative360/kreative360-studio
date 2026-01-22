@@ -731,7 +731,6 @@ export default function ProjectPage() {
                   }
                   
                   try {
-                    // Intentar descarga directa primero
                     const response = await fetch(selectedImg.reference);
                     
                     if (!response.ok) throw new Error('Error al descargar');
@@ -745,7 +744,7 @@ export default function ProjectPage() {
                     else if (contentType.includes('webp')) extension = 'webp';
                     else if (contentType.includes('jpeg') || contentType.includes('jpg')) extension = 'jpg';
                     
-                    // Nombre con formato: ASIN_numeracion.extension
+                    // Nombre con formato: ASIN_numeracion.extension (igual que ASIN)
                     const fileName = selectedImg.index !== undefined 
                       ? `${selectedImg.asin || 'imagen'}_${selectedImg.index}.${extension}`
                       : `${selectedImg.asin || 'imagen'}.${extension}`;
@@ -760,7 +759,7 @@ export default function ProjectPage() {
                     document.body.removeChild(a);
                   } catch (error) {
                     console.error('Error descargando referencia:', error);
-                    alert('Error al descargar la imagen de referencia. Intenta con el ZIP.');
+                    alert('Error al descargar la imagen de referencia');
                   }
                 }}
                 style={{
