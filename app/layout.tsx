@@ -123,6 +123,24 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 Panel PicTULAB
               </Link>
 
+              {/* 🆕 LIMPIEZA */}
+              <Link
+                href="/cleanup"
+                onClick={() => setOpen(false)}
+                style={{
+                  padding: "14px 16px",
+                  background: "#fff5f5",
+                  borderRadius: 12,
+                  border: "1px solid #fca5a5",
+                  marginBottom: 12,
+                  fontWeight: 600,
+                  color: "#991b1b",
+                  textDecoration: "none",
+                }}
+              >
+                🧹 Limpieza
+              </Link>
+
               <p style={{ marginTop: "auto", color: "#666", fontSize: 12 }}>
                 © 2025 Kreative 360º
               </p>
