@@ -13,7 +13,7 @@ type ProjectImage = {
   asin?: string;
   index?: number;
   url?: string;
-  base64?: string; // 🆕 AÑADIDO
+  base64?: string;
   validation_status?: "pending" | "approved" | "rejected";
   original_image_url?: string;
   prompt_used?: string;
@@ -62,16 +62,6 @@ export default function ProjectPage() {
   const [showEditor, setShowEditor] = useState(false);
   const [editorImageUrl, setEditorImageUrl] = useState("");
   const [editorImageId, setEditorImageId] = useState("");
-  
-  // 🆕 Estado para preview de edición
-  const [editPreview, setEditPreview] = useState<{
-    originalUrl: string;
-    editedBase64: string;
-    imageId: string;
-  } | null>(null);
-  
-  // 🆕 Estado para loader de aprobación
-  const [approvingEdit, setApprovingEdit] = useState(false);
 
   /* ======================================================
      CARGA DE IMÁGENES (REAL)
@@ -275,7 +265,7 @@ export default function ProjectPage() {
         currentImage: {
           ...currentImg,
           url: newUrl,
-          base64: newImage.base64, // 🆕 Guardar base64
+          base64: newImage.base64,
           prompt_used: promptToUse,
         },
         imagesInReference: reviewModal.imagesInReference.map(img =>
@@ -304,32 +294,15 @@ export default function ProjectPage() {
     }
   };
 
+  // 🔧 SIMPLIFICADO: Guardar edición directamente
   const handleSaveEdit = async (base64: string) => {
-    // 🔧 NO guardar directamente - mostrar preview
-    const originalImage = images.find(img => img.id === editorImageId);
-    
-    setEditPreview({
-      originalUrl: originalImage?.url || "",
-      editedBase64: base64,
-      imageId: editorImageId,
-    });
-    
-    setShowEditor(false);
-  };
-
-  // 🆕 Función para aprobar la edición
-  const handleApproveEdit = async () => {
-    if (!editPreview) return;
-    
-    setApprovingEdit(true);
-    
     try {
       const res = await fetch("/api/projects/update-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
-          imageId: editPreview.imageId, 
-          base64: editPreview.editedBase64, 
+          imageId: editorImageId, 
+          base64: base64, 
           mime: "image/jpeg", 
           promptUsed: "Editado con IA" 
         }),
@@ -342,42 +315,35 @@ export default function ProjectPage() {
       
       // Actualizar estado de imágenes CON base64
       setImages(prev => prev.map(img => 
-        img.id === editPreview.imageId 
-          ? { ...img, url: newUrl, base64: editPreview.editedBase64 } 
+        img.id === editorImageId 
+          ? { ...img, url: newUrl, base64: base64 } 
           : img
       ));
       
       // Actualizar modal de revisión si está abierto
-      if (reviewModal && reviewModal.currentImage?.id === editPreview.imageId) {
+      if (reviewModal && reviewModal.currentImage?.id === editorImageId) {
         setReviewModal({
           ...reviewModal,
           currentImage: { 
             ...reviewModal.currentImage, 
             url: newUrl, 
-            base64: editPreview.editedBase64 
+            base64: base64 
           },
           imagesInReference: reviewModal.imagesInReference.map(img =>
-            img.id === editPreview.imageId 
-              ? { ...img, url: newUrl, base64: editPreview.editedBase64 } 
+            img.id === editorImageId 
+              ? { ...img, url: newUrl, base64: base64 } 
               : img
           ),
         });
       }
       
-      // 🔧 Cerrar modal inmediatamente sin alert
-      setEditPreview(null);
-      setApprovingEdit(false);
+      // Cerrar editor
+      setShowEditor(false);
       
     } catch (error) {
       console.error("Error al guardar la edición:", error);
-      setEditPreview(null);
-      setApprovingEdit(false);
+      alert("Error al guardar la edición");
     }
-  };
-
-  // 🆕 Función para rechazar la edición
-  const handleRejectEdit = () => {
-    setEditPreview(null);
   };
 
   // 🆕 Listener de ESC key
@@ -1450,239 +1416,13 @@ export default function ProjectPage() {
         </div>
       )}
 
-      {/* 🔧 EDITOR - CORREGIDO */}
+      {/* EDITOR - El modal de comparación está dentro del ImageEditor */}
       {showEditor && (
         <ImageEditor
           imageUrl={editorImageUrl}
           onSave={handleSaveEdit}
           onCancel={() => setShowEditor(false)}
         />
-      )}
-
-      {/* 🆕 MODAL DE PREVIEW COMPARATIVO */}
-      {editPreview && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.95)",
-            display: "flex",
-            flexDirection: "column",
-            zIndex: 10000,
-          }}
-        >
-          {/* Header con botón X */}
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              padding: "20px 40px",
-              borderBottom: "1px solid rgba(255,255,255,0.1)",
-            }}
-          >
-            <h2
-              style={{
-                color: "#fff",
-                fontSize: 24,
-                margin: 0,
-              }}
-            >
-              📸 Comparación: Original vs Editada
-            </h2>
-            <button
-              onClick={() => setEditPreview(null)}
-              disabled={approvingEdit}
-              style={{
-                background: "transparent",
-                border: "2px solid #fff",
-                color: "#fff",
-                borderRadius: 8,
-                padding: "8px 16px",
-                fontSize: 18,
-                cursor: approvingEdit ? "not-allowed" : "pointer",
-                opacity: approvingEdit ? 0.5 : 1,
-              }}
-            >
-              ✕
-            </button>
-          </div>
-
-          {/* Contenedor de imágenes */}
-          <div
-            style={{
-              flex: 1,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "20px 40px",
-              gap: 40,
-              overflow: "auto",
-              minHeight: 0,
-            }}
-          >
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: 40,
-                maxWidth: "1200px",
-                width: "100%",
-              }}
-            >
-              {/* Imagen Original */}
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                }}
-              >
-                <h3 style={{ color: "#fff", marginBottom: 16, fontSize: 16 }}>
-                  🖼️ Original
-                </h3>
-                <div
-                  style={{
-                    width: "100%",
-                    maxWidth: 450,
-                    aspectRatio: "1",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: "#1a1a1a",
-                    borderRadius: 12,
-                    border: "3px solid rgba(255,255,255,0.2)",
-                    overflow: "hidden",
-                  }}
-                >
-                  <img
-                    src={editPreview.originalUrl}
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "contain",
-                    }}
-                    alt="Original"
-                  />
-                </div>
-              </div>
-
-              {/* Imagen Editada */}
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                }}
-              >
-                <h3 style={{ color: "#fff", marginBottom: 16, fontSize: 16 }}>
-                  ✨ Editada
-                </h3>
-                <div
-                  style={{
-                    width: "100%",
-                    maxWidth: 450,
-                    aspectRatio: "1",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: "#1a1a1a",
-                    borderRadius: 12,
-                    border: "3px solid #10b981",
-                    overflow: "hidden",
-                  }}
-                >
-                  <img
-                    src={`data:image/jpeg;base64,${editPreview.editedBase64}`}
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "contain",
-                    }}
-                    alt="Editada"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Botones de decisión */}
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              gap: 20,
-              padding: "30px 40px",
-              borderTop: "1px solid rgba(255,255,255,0.1)",
-            }}
-          >
-            <button
-              onClick={handleRejectEdit}
-              disabled={approvingEdit}
-              style={{
-                background: "#ef4444",
-                color: "#fff",
-                border: "none",
-                borderRadius: 10,
-                padding: "14px 40px",
-                fontSize: 16,
-                fontWeight: 600,
-                cursor: approvingEdit ? "not-allowed" : "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                opacity: approvingEdit ? 0.5 : 1,
-              }}
-            >
-              ✕ Descartar cambios
-            </button>
-            <button
-              onClick={handleApproveEdit}
-              disabled={approvingEdit}
-              style={{
-                background: "#10b981",
-                color: "#fff",
-                border: "none",
-                borderRadius: 10,
-                padding: "14px 40px",
-                fontSize: 16,
-                fontWeight: 600,
-                cursor: approvingEdit ? "not-allowed" : "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                opacity: approvingEdit ? 0.8 : 1,
-              }}
-            >
-              {approvingEdit ? (
-                <>
-                  <span
-                    style={{
-                      width: 16,
-                      height: 16,
-                      border: "2px solid #fff",
-                      borderTopColor: "transparent",
-                      borderRadius: "50%",
-                      animation: "spin 0.6s linear infinite",
-                    }}
-                  />
-                  Guardando...
-                </>
-              ) : (
-                <>✓ Usar esta versión</>
-              )}
-            </button>
-          </div>
-
-          {/* Animación del spinner */}
-          <style>
-            {`
-              @keyframes spin {
-                to { transform: rotate(360deg); }
-              }
-            `}
-          </style>
-        </div>
       )}
     </div>
   );
