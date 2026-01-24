@@ -24,7 +24,7 @@ export default function CleanupOrphansButton() {
     setResult(null);
 
     try {
-      const response = await fetch("/api/cleanup-orphans", {
+      const response = await fetch("/api/projects/cleanup-orphans", {
         method: "POST",
       });
 
