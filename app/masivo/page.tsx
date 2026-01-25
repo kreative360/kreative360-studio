@@ -663,7 +663,7 @@ export default function Page() {
   /* ====== Estado para el envío ====== */
   const [isSending, setIsSending] = useState(false);
 
-  /* ====== 🔧 CORREGIDO: Función para enviar a proyecto ====== */
+  /* ====== 🔧 CORREGIDO: Función para enviar a proyecto CON LOTES ====== */
   const handleSendToProject = async () => {
     if (!selectedProjectId) {
       alert("Selecciona un proyecto antes de enviar imágenes.");
@@ -740,28 +740,49 @@ export default function Page() {
     setIsSending(true);
 
     try {
-      const res = await fetch("/api/projects/add-images", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          projectId: selectedProjectId,
-          images,
-          originalImageUrl, // 🆕 Añadir URL original
-          promptUsed: promptsByRef[activeRef] || null, // 🆕 Añadir prompt usado
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        console.error("Error enviando imágenes:", data);
-        alert("Error enviando imágenes al proyecto.");
-        return;
+      // 🆕 ENVÍO EN LOTES DE 2 IMÁGENES
+      const BATCH_SIZE = 2;
+      const batches = [];
+      
+      for (let i = 0; i < images.length; i += BATCH_SIZE) {
+        batches.push(images.slice(i, i + BATCH_SIZE));
       }
 
-      alert(`✅ ${images.length} imagen(es) enviadas correctamente al proyecto`);
+      console.log(`📦 Enviando ${images.length} imágenes en ${batches.length} lote(s) de ${BATCH_SIZE}`);
+
+      let totalSent = 0;
+
+      // Enviar cada lote secuencialmente
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i];
+        console.log(`📤 Enviando lote ${i + 1}/${batches.length} (${batch.length} imágenes)...`);
+
+        const res = await fetch("/api/projects/add-images", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId: selectedProjectId,
+            images: batch,  // Solo este lote
+            originalImageUrl: i === 0 ? originalImageUrl : null, // Solo en el primer lote
+            promptUsed: i === 0 ? (promptsByRef[activeRef] || null) : null, // Solo en el primer lote
+          }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+          console.error(`❌ Error en lote ${i + 1}:`, data);
+          alert(`Error enviando lote ${i + 1}/${batches.length}. ${totalSent} imágenes enviadas antes del error.`);
+          return;
+        }
+
+        totalSent += batch.length;
+        console.log(`✅ Lote ${i + 1}/${batches.length} enviado correctamente`);
+      }
+
+      alert(`✅ ${totalSent} imagen(es) enviadas correctamente al proyecto en ${batches.length} lote(s)`);
     } catch (error) {
-      console.error(error);
+      console.error("❌ Error enviando imágenes:", error);
       alert("❌ Error enviando las imágenes al proyecto");
     } finally {
       setIsSending(false);
