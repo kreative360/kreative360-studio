@@ -2277,7 +2277,7 @@ export default function Page() {
                     disabled={
                       activeSources.length === 0 ||
                       isLoading ||
-                      (isCustom && !(editedPrompts[p.id] ?? "").trim())
+                      (isCustom && !(editedPrompts[p.id] ?? "").trim() && !refImg)
                     }
                     style={{
                       flex: 1,
