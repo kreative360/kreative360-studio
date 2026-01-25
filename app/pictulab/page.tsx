@@ -263,10 +263,10 @@ export default function PictuLabPage() {
       {
         base64: generated.base64,
         mime,
-        filename: `${reference}_1.${ext}`,
+        filename: `${reference}_0.${ext}`,
         reference,
         asin,
-        image_index: 1
+        image_index: 0
       }
     ];
 
@@ -294,14 +294,14 @@ export default function PictuLabPage() {
 
       if (!res.ok || !data.success) {
         console.error("Error enviando imagen:", data);
-        alert("Error enviando la imagen al proyecto.");
+        alert(`Error enviando la imagen al proyecto: ${data.error || 'Error desconocido'}`);
         return;
       }
 
       alert(`✅ Imagen enviada correctamente al proyecto`);
     } catch (error) {
-      console.error(error);
-      alert("❌ Error enviando la imagen al proyecto");
+      console.error("Error completo:", error);
+      alert(`❌ Error enviando la imagen al proyecto: ${error instanceof Error ? error.message : 'Error desconocido'}`);
     } finally {
       setIsSending(false);
     }
