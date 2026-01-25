@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import { PRESETS } from "../../lib/presets";
+import ImageEditor from "../components/ImageEditor";
 
 /* ===========================
    Utils
@@ -855,6 +856,59 @@ export default function Page() {
   );
   const [editingName, setEditingName] = useState<string>("");
   const [editingValue, setEditingValue] = useState<string>("");
+
+  /* ====== Estados para ImageEditor ====== */
+  const [editingImage, setEditingImage] = useState<{
+    presetId: string;
+    imageIndex: number;
+    imageUrl: string;
+  } | null>(null);
+
+  const openImageEditor = (presetId: string, imageIndex: number) => {
+    const imgs = (resultsByRef[activeRef] || {})[presetId] || [];
+    const img = imgs[imageIndex];
+    if (!img) return;
+    
+    const mime = img.mime || "image/png";
+    const imageUrl = `data:${mime};base64,${img.base64}`;
+    
+    setEditingImage({ presetId, imageIndex, imageUrl });
+  };
+
+  const closeImageEditor = () => {
+    setEditingImage(null);
+  };
+
+  const saveEditedImage = (editedImageBase64: string) => {
+    if (!editingImage) return;
+    
+    const { presetId, imageIndex } = editingImage;
+    
+    // Actualizar la imagen en resultsByRef
+    setResultsByRef((prev) => {
+      const refKey = activeRef;
+      const byRef = { ...(prev[refKey] || {}) };
+      const imgs = [...(byRef[presetId] || [])];
+      
+      if (imgs[imageIndex]) {
+        // Extraer el base64 puro (sin el prefijo data:image/...)
+        const base64Data = editedImageBase64.split(',')[1] || editedImageBase64;
+        const mimeMatch = editedImageBase64.match(/data:([^;]+);/);
+        const mime = mimeMatch ? mimeMatch[1] : imgs[imageIndex].mime || "image/png";
+        
+        imgs[imageIndex] = {
+          ...imgs[imageIndex],
+          base64: base64Data,
+          mime,
+        };
+      }
+      
+      byRef[presetId] = imgs;
+      return { ...prev, [refKey]: byRef };
+    });
+    
+    closeImageEditor();
+  };
 
   const openEditPrompt = (presetId: string) => {
     const preset = mapById.get(presetId);
@@ -2047,15 +2101,30 @@ export default function Page() {
                   <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: ".04em" }}>
                     {displayName.toUpperCase()}
                   </div>
-                  <button
-                    className="icon-btn"
-                    onClick={() => openEditPrompt(p.id)}
-                    title="Editar nombre y/o prompt"
-                    aria-label="Editar nombre y/o prompt"
-                    style={{ background: "#ffffffa0", color: "#111" }}
-                  >
-                    ✎
-                  </button>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {/* Botón "P" - Editar Prompt */}
+                    <button
+                      className="icon-btn"
+                      onClick={() => openEditPrompt(p.id)}
+                      title="Editar nombre y/o prompt"
+                      aria-label="Editar nombre y/o prompt"
+                      style={{ background: "#ffffffa0", color: "#111", padding: "4px 8px", fontWeight: 800 }}
+                    >
+                      P
+                    </button>
+                    {/* Botón "✏️" - Editar Imagen (solo si hay imágenes) */}
+                    {imgs.length > 0 && (
+                      <button
+                        className="icon-btn"
+                        onClick={() => openImageEditor(p.id, 0)}
+                        title="Editar imagen"
+                        aria-label="Editar imagen"
+                        style={{ background: "#ffffffa0", color: "#111" }}
+                      >
+                        ✏️
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Prompt visible */}
@@ -2388,6 +2457,29 @@ export default function Page() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ImageEditor Modal */}
+      {editingImage && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0 as unknown as number,
+            background: "rgba(0,0,0,0.95)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+            zIndex: 10000,
+            overflow: "auto",
+          }}
+        >
+          <ImageEditor
+            imageUrl={editingImage.imageUrl}
+            onSave={saveEditedImage}
+            onCancel={closeImageEditor}
+          />
         </div>
       )}
     </div>
