@@ -3,6 +3,9 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getOrCreateProductReference } from "@/lib/services/supabase.service";
 import { v4 as uuidv4 } from "uuid";
 
+export const maxDuration = 60;
+export const runtime = 'nodejs';
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
