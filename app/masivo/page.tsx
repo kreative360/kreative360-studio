@@ -2112,18 +2112,21 @@ export default function Page() {
                     >
                       P
                     </button>
-                    {/* Botón "✏️" - Editar Imagen (solo si hay imágenes) */}
-                    {imgs.length > 0 && (
-                      <button
-                        className="icon-btn"
-                        onClick={() => openImageEditor(p.id, 0)}
-                        title="Editar imagen"
-                        aria-label="Editar imagen"
-                        style={{ background: "#ffffffa0", color: "#111" }}
-                      >
-                        ✏️
-                      </button>
-                    )}
+                    {/* Botón "✏️" - Editar Imagen */}
+                    <button
+                      className="icon-btn"
+                      onClick={() => imgs.length > 0 && openImageEditor(p.id, 0)}
+                      disabled={imgs.length === 0}
+                      title={imgs.length > 0 ? "Editar imagen" : "Genera imágenes primero"}
+                      aria-label="Editar imagen"
+                      style={{ 
+                        background: imgs.length > 0 ? "#ffffffa0" : "#cccccc60", 
+                        color: imgs.length > 0 ? "#111" : "#666",
+                        cursor: imgs.length > 0 ? "pointer" : "not-allowed"
+                      }}
+                    >
+                      ✏️
+                    </button>
                   </div>
                 </div>
 
