@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 
+const LS_SELECTED_PROJECT = "selectedProject:v1";
+
 export default function PictuLabPage() {
   const [selectedSize, setSelectedSize] = useState("1:1 (cuadrado)");
   const [modeList, setModeList] = useState(true);
@@ -25,6 +27,20 @@ export default function PictuLabPage() {
   } | null>(null);
 
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // 🆕 ESTADO PARA PROYECTOS
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [projects, setProjects] = useState<Array<{ id: string; name: string }>>([]);
+  const [isLoadingProjects, setIsLoadingProjects] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  
+  // 🆕 CAMPOS ZIP (Referencia se llena automáticamente con nombre de archivo)
+  const [zipNameRef, setZipNameRef] = useState<string>("");
+  const [zipNameAsin, setZipNameAsin] = useState<string>("");
+  const [zipInputKey, setZipInputKey] = useState(0);
+
+  // 🆕 Guardar el nombre original del primer archivo subido
+  const [firstFileName, setFirstFileName] = useState<string>("");
 
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -55,6 +71,48 @@ export default function PictuLabPage() {
 
   const [previewDims, setPreviewDims] = useState({ w: 0, h: 0 });
 
+  // 🆕 CARGAR PROYECTOS AL MONTAR
+  useEffect(() => {
+    const loadProjects = async () => {
+      try {
+        setIsLoadingProjects(true);
+        const res = await fetch("/api/projects/list");
+        if (!res.ok) throw new Error("Error cargando proyectos");
+        const data = await res.json();
+        setProjects(data.projects || []);
+      } catch (error) {
+        console.error("Error cargando proyectos:", error);
+      } finally {
+        setIsLoadingProjects(false);
+      }
+    };
+
+    loadProjects();
+  }, []);
+
+  // 🆕 CARGAR PROYECTO SELECCIONADO DE LOCALSTORAGE
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(LS_SELECTED_PROJECT);
+      if (saved) {
+        setSelectedProjectId(saved);
+      }
+    } catch (e) {
+      console.warn("No se pudo cargar proyecto seleccionado de localStorage", e);
+    }
+  }, []);
+
+  // 🆕 GUARDAR PROYECTO SELECCIONADO EN LOCALSTORAGE
+  useEffect(() => {
+    if (selectedProjectId) {
+      try {
+        localStorage.setItem(LS_SELECTED_PROJECT, selectedProjectId);
+      } catch (e) {
+        console.warn("No se pudo guardar proyecto seleccionado en localStorage", e);
+      }
+    }
+  }, [selectedProjectId]);
+
   useEffect(() => {
     function update() {
       if (!containerRef.current) return;
@@ -84,12 +142,23 @@ export default function PictuLabPage() {
 
     const existing = [...uploadedImages];
 
-    files.forEach((file: any) => {
+    files.forEach((file: any, index: number) => {
       if (existing.length < 5) {
         const reader = new FileReader();
         reader.onload = () => {
           existing.push(reader.result as string);
           setUploadedImages([...existing]);
+
+          // 🆕 GUARDAR NOMBRE DEL PRIMER ARCHIVO (sin extensión)
+          if (index === 0 && !firstFileName) {
+            const nameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
+            setFirstFileName(nameWithoutExt);
+            
+            // 🆕 LLENAR AUTOMÁTICAMENTE EL CAMPO DE REFERENCIA
+            if (!zipNameRef) {
+              setZipNameRef(nameWithoutExt);
+            }
+          }
         };
         reader.readAsDataURL(file);
       }
@@ -162,6 +231,81 @@ export default function PictuLabPage() {
     link.download = filename;
     link.click();
   }
+
+  // 🆕 ENVIAR A PROYECTO
+  const handleSendToProject = async () => {
+    if (!selectedProjectId) {
+      alert("Selecciona un proyecto antes de enviar la imagen.");
+      return;
+    }
+
+    if (!generated) {
+      alert("Primero genera una imagen antes de enviarla al proyecto.");
+      return;
+    }
+
+    const reference = zipNameRef.trim();
+    const asin = zipNameAsin.trim() || null;
+
+    if (!reference) {
+      alert("Debes especificar una referencia en el campo correspondiente.");
+      return;
+    }
+
+    const mime = generated.mime || "image/jpeg";
+    const ext =
+      mime.includes("png") ? "png" :
+      mime.includes("webp") ? "webp" :
+      mime.includes("gif") ? "gif" :
+      "jpg";
+
+    const images = [
+      {
+        base64: generated.base64,
+        mime,
+        filename: `${reference}_1.${ext}`,
+        reference,
+        asin,
+        image_index: 1
+      }
+    ];
+
+    // Capturar URL original (primera imagen de referencia si existe)
+    const originalImageUrl = uploadedImages.length > 0 ? uploadedImages[0] : null;
+
+    // Capturar prompt usado
+    const promptUsed = (document.querySelector("textarea") as HTMLTextAreaElement)?.value || null;
+
+    setIsSending(true);
+
+    try {
+      const res = await fetch("/api/projects/add-images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: selectedProjectId,
+          images,
+          originalImageUrl,
+          promptUsed,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        console.error("Error enviando imagen:", data);
+        alert("Error enviando la imagen al proyecto.");
+        return;
+      }
+
+      alert(`✅ Imagen enviada correctamente al proyecto`);
+    } catch (error) {
+      console.error(error);
+      alert("❌ Error enviando la imagen al proyecto");
+    } finally {
+      setIsSending(false);
+    }
+  };
 
   return (
     <>
@@ -313,6 +457,167 @@ export default function PictuLabPage() {
             </div>
           </div>
 
+          {/* 🆕 SELECTOR DE PROYECTO + CAMPOS ZIP */}
+          <div className="sidebar-box">
+            <h2>Enviar a proyecto</h2>
+            
+            {/* Selector de proyecto */}
+            <div style={{ position: "relative", marginBottom: 10 }}>
+              <select
+                value={selectedProjectId || ""}
+                onChange={(e) => setSelectedProjectId(e.target.value || null)}
+                disabled={isLoadingProjects}
+                style={{
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 8,
+                  padding: "8px 30px 8px 12px",
+                  width: "100%",
+                  background: "#fff",
+                  color: selectedProjectId ? "#111" : "#9ca3af",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  appearance: "none",
+                  fontSize: 14,
+                }}
+                title={
+                  selectedProjectId 
+                    ? `Proyecto seleccionado: ${projects.find(p => p.id === selectedProjectId)?.name || selectedProjectId}`
+                    : "Selecciona un proyecto para enviar imágenes"
+                }
+              >
+                <option value="">{isLoadingProjects ? "Cargando..." : "Seleccionar proyecto"}</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+              <div
+                style={{
+                  position: "absolute",
+                  right: 10,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  pointerEvents: "none",
+                  color: "#6b7280",
+                }}
+              >
+                ▼
+              </div>
+            </div>
+
+            {/* Campo Referencia */}
+            <div style={{ position: "relative", marginBottom: 10 }}>
+              <input
+                key={`ref-${zipInputKey}`}
+                value={zipNameRef}
+                onChange={(e) => setZipNameRef(e.target.value)}
+                placeholder="Nombre ZIP (Referencia)"
+                style={{
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 8,
+                  padding: "8px 36px 8px 12px",
+                  width: "100%",
+                  fontSize: 14,
+                }}
+              />
+              {zipNameRef.trim() !== "" && (
+                <button
+                  onClick={() => { setZipNameRef(""); setZipInputKey((k) => k + 1); }}
+                  title="Borrar nombre"
+                  aria-label="Borrar nombre"
+                  style={{
+                    position: "absolute",
+                    right: 8,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    width: 22,
+                    height: 22,
+                    borderRadius: 6,
+                    border: "1px solid #e5e7eb",
+                    background: "#fff",
+                    color: "#111",
+                    cursor: "pointer",
+                    lineHeight: "20px",
+                    fontWeight: 800,
+                  }}
+                >
+                  ×
+                </button>
+              )}
+            </div>
+
+            {/* Campo ASIN */}
+            <div style={{ position: "relative", marginBottom: 10 }}>
+              <input
+                key={`asin-${zipInputKey}`}
+                value={zipNameAsin}
+                onChange={(e) => setZipNameAsin(e.target.value)}
+                placeholder="Nombre ZIP (ASIN)"
+                style={{
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 8,
+                  padding: "8px 36px 8px 12px",
+                  width: "100%",
+                  fontSize: 14,
+                }}
+              />
+              {zipNameAsin.trim() !== "" && (
+                <button
+                  onClick={() => { setZipNameAsin(""); setZipInputKey((k) => k + 1); }}
+                  title="Borrar nombre"
+                  aria-label="Borrar nombre"
+                  style={{
+                    position: "absolute",
+                    right: 8,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    width: 22,
+                    height: 22,
+                    borderRadius: 6,
+                    border: "1px solid #e5e7eb",
+                    background: "#fff",
+                    color: "#111",
+                    cursor: "pointer",
+                    lineHeight: "20px",
+                    fontWeight: 800,
+                  }}
+                >
+                  ×
+                </button>
+              )}
+            </div>
+
+            {/* Botón Enviar */}
+            <button
+              onClick={handleSendToProject}
+              disabled={isSending || !selectedProjectId || !generated}
+              style={{
+                borderRadius: 8,
+                padding: "10px 12px",
+                width: "100%",
+                background: (selectedProjectId && generated) ? "#10b981" : "#e5e7eb",
+                color: (selectedProjectId && generated) ? "#ffffff" : "#9ca3af",
+                fontWeight: 700,
+                cursor: (isSending || !selectedProjectId || !generated) ? "not-allowed" : "pointer",
+                border: "1px solid rgba(0,0,0,.1)",
+                opacity: isSending ? 0.7 : 1,
+                fontSize: 14,
+              }}
+              title={
+                !selectedProjectId 
+                  ? "Selecciona un proyecto primero" 
+                  : !generated
+                    ? "Genera una imagen primero"
+                    : isSending 
+                      ? "Enviando imagen..." 
+                      : `Enviar imagen al proyecto`
+              }
+            >
+              {isSending ? "Enviando..." : "Enviar a proyecto"}
+            </button>
+          </div>
+
           {/* GENERAR */}
           <button className="generate-btn" onClick={generateImage} disabled={isGenerating}>
             {isGenerating ? (
@@ -382,4 +687,3 @@ export default function PictuLabPage() {
     </>
   );
 }
-
