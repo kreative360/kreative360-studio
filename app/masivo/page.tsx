@@ -767,10 +767,10 @@ export default function Page() {
     }
   };
 
-  /* ====== Construcción de presets con 6 extras y orden persistente ====== */
+  /* ====== Construcción de presets con 11 extras y orden persistente ====== */
 
   const baseAndCustom = useMemo(() => {
-    const customs = Array.from({ length: 6 }, (_, i) => ({
+    const customs = Array.from({ length: 11 }, (_, i) => ({
       id: `custom-${i + 1}`,
       name: `Custom ${i + 1}`,
       prompt: "",
