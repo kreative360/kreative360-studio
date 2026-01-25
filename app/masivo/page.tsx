@@ -220,8 +220,19 @@ const LS_SELECTED_PROJECT = "selectedProject:v1";
 
 /* Instrucción automática para prompts custom con imagen de referencia */
 const REFERENCE_INSTRUCTION_EN = `
-Imitate the composition, lighting, and style of the reference image,
-but use my product exactly as it appears — hyperrealistic, with 100% accurate design, logos, and details.
+
+CRITICAL INSTRUCTIONS FOR STYLE TRANSFER:
+1. The FIRST image is the STYLE REFERENCE - analyze its composition, lighting, angle, background, mood, and atmosphere
+2. The SECOND image onwards show MY PRODUCT - this is what must appear in the final image
+3. Recreate the EXACT style, lighting, composition, angle, and atmosphere from the reference image
+4. Replace any product in the reference with MY PRODUCT, maintaining 100% accuracy: exact colors, logos, textures, materials, and design details
+5. Keep the same background type, lighting setup, camera angle, and overall mood as the reference
+6. MY PRODUCT must be hyperrealistic with perfect fidelity - do not alter its appearance, only place it in the reference's style context
+
+IMPORTANT: 
+- Reference image = style/composition/lighting to replicate
+- My product images = the actual product to show
+- Final result = my product styled exactly like the reference image
 `.trim();
 
 type Overrides = {
@@ -1078,10 +1089,12 @@ export default function Page() {
         return;
       }
       if (refImage) {
+        // Cuando hay imagen de referencia, primero va el prompt del usuario, luego las instrucciones de transferencia de estilo
         overridePrompt = `${overridePrompt}\n\n${REFERENCE_INSTRUCTION_EN}`.trim();
       }
     }
 
+    // ORDEN DE IMÁGENES: Si hay referencia, va PRIMERO (para que la IA la use como estilo), luego el producto
     const refsToSend = (refImage ? [refImage, ...productRefs] : productRefs).slice(0, 6);
 
     const basePresetId = isCustom ? (PRESETS[0]?.id || presetId) : presetId;
@@ -2146,7 +2159,11 @@ export default function Page() {
                     whiteSpace: "pre-wrap",
                   }}
                 >
-                  {promptShown || (p.id.startsWith("custom-") ? "Escribe tu prompt (botón ✎)" : "")}
+                  {promptShown || (p.id.startsWith("custom-") 
+                    ? (refImg 
+                      ? "Escribe tu prompt (botón P). Con imagen de referencia: describe el resultado que quieres replicar." 
+                      : "Escribe tu prompt (botón P)")
+                    : "")}
                 </div>
 
                 {/* 🆕 Zona para imagen de referencia (solo custom-*) */}
