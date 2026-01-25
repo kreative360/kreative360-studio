@@ -1084,12 +1084,19 @@ export default function Page() {
     const isCustom = presetId.startsWith("custom-");
     const refImage = customRefs[presetId];
     if (isCustom) {
-      if (!overridePrompt) {
-        alert("Escribe un prompt en la tarjeta antes de generar.");
+      // Si NO hay imagen de referencia, el prompt es obligatorio
+      if (!refImage && !overridePrompt) {
+        alert("Escribe un prompt en la tarjeta antes de generar, o añade una imagen de referencia.");
         return;
       }
+      
+      // Si HAY imagen de referencia, el prompt es opcional
       if (refImage) {
-        // Cuando hay imagen de referencia, primero va el prompt del usuario, luego las instrucciones de transferencia de estilo
+        if (!overridePrompt) {
+          // Prompt automático cuando solo hay referencia
+          overridePrompt = "Product photography replicating the exact style of the reference image.";
+        }
+        // Añadir instrucciones de transferencia de estilo
         overridePrompt = `${overridePrompt}\n\n${REFERENCE_INSTRUCTION_EN}`.trim();
       }
     }
@@ -2161,7 +2168,7 @@ export default function Page() {
                 >
                   {promptShown || (p.id.startsWith("custom-") 
                     ? (refImg 
-                      ? "Escribe tu prompt (botón P). Con imagen de referencia: describe el resultado que quieres replicar." 
+                      ? "Prompt opcional. La IA replicará automáticamente el estilo de la referencia. Añade detalles extra si quieres (botón P)." 
                       : "Escribe tu prompt (botón P)")
                     : "")}
                 </div>
