@@ -69,139 +69,159 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 Kreative 360º
               </h1>
 
-              {/* 1. Panel Masivo */}
+              {/* 1. Panel Masivo - 🎨 */}
               <Link
                 href="/masivo"
                 onClick={() => setOpen(false)}
                 style={{
                   padding: "14px 16px",
-                  background: "#fff",
+                  background: "#fff0f0",
                   borderRadius: 12,
-                  border: "1px solid #e5e7eb",
+                  border: "1px solid #ffd6d6",
                   marginBottom: 12,
                   fontWeight: 600,
-                  color: "#111827",
+                  color: "#1f2937",
                   textDecoration: "none",
                   transition: "all 0.2s ease",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "#f9fafb";
-                  e.currentTarget.style.borderColor = "#d1d5db";
+                  e.currentTarget.style.background = "#ffe4e4";
+                  e.currentTarget.style.borderColor = "#ffb8b8";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "#fff";
-                  e.currentTarget.style.borderColor = "#e5e7eb";
+                  e.currentTarget.style.background = "#fff0f0";
+                  e.currentTarget.style.borderColor = "#ffd6d6";
                 }}
               >
-                Panel Masivo
+                <span>Panel Masivo</span>
+                <span style={{ fontSize: 18 }}>🎨</span>
               </Link>
 
-              {/* 2. Panel Pictulab */}
+              {/* 2. Panel Pictulab - 🖼️ */}
               <Link
                 href="/pictulab"
                 onClick={() => setOpen(false)}
                 style={{
                   padding: "14px 16px",
-                  background: "#fff",
+                  background: "#fff0f0",
                   borderRadius: 12,
-                  border: "1px solid #e5e7eb",
+                  border: "1px solid #ffd6d6",
                   marginBottom: 12,
                   fontWeight: 600,
-                  color: "#111827",
+                  color: "#1f2937",
                   textDecoration: "none",
                   transition: "all 0.2s ease",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "#f9fafb";
-                  e.currentTarget.style.borderColor = "#d1d5db";
+                  e.currentTarget.style.background = "#ffe4e4";
+                  e.currentTarget.style.borderColor = "#ffb8b8";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "#fff";
-                  e.currentTarget.style.borderColor = "#e5e7eb";
+                  e.currentTarget.style.background = "#fff0f0";
+                  e.currentTarget.style.borderColor = "#ffd6d6";
                 }}
               >
-                Panel Pictulab
+                <span>Panel Pictulab</span>
+                <span style={{ fontSize: 18 }}>🖼️</span>
               </Link>
 
-              {/* 3. Galería Proyectos */}
+              {/* 3. Galería Proyectos - 📁 */}
               <Link
                 href="/projects"
                 onClick={() => setOpen(false)}
                 style={{
                   padding: "14px 16px",
-                  background: "#fff",
+                  background: "#fff0f0",
                   borderRadius: 12,
-                  border: "1px solid #e5e7eb",
+                  border: "1px solid #ffd6d6",
                   marginBottom: 12,
                   fontWeight: 600,
-                  color: "#111827",
+                  color: "#1f2937",
                   textDecoration: "none",
                   transition: "all 0.2s ease",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "#f9fafb";
-                  e.currentTarget.style.borderColor = "#d1d5db";
+                  e.currentTarget.style.background = "#ffe4e4";
+                  e.currentTarget.style.borderColor = "#ffb8b8";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "#fff";
-                  e.currentTarget.style.borderColor = "#e5e7eb";
+                  e.currentTarget.style.background = "#fff0f0";
+                  e.currentTarget.style.borderColor = "#ffd6d6";
                 }}
               >
-                Galería Proyectos
+                <span>Galería Proyectos</span>
+                <span style={{ fontSize: 18 }}>📁</span>
               </Link>
 
-              {/* 4. Galería Prompts - NUEVO */}
+              {/* 4. Galería Prompts - 📝 */}
               <Link
                 href="/prompts"
                 onClick={() => setOpen(false)}
                 style={{
                   padding: "14px 16px",
-                  background: "#fff",
+                  background: "#fff0f0",
                   borderRadius: 12,
-                  border: "1px solid #e5e7eb",
+                  border: "1px solid #ffd6d6",
                   marginBottom: 12,
                   fontWeight: 600,
-                  color: "#111827",
+                  color: "#1f2937",
                   textDecoration: "none",
                   transition: "all 0.2s ease",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "#f9fafb";
-                  e.currentTarget.style.borderColor = "#d1d5db";
+                  e.currentTarget.style.background = "#ffe4e4";
+                  e.currentTarget.style.borderColor = "#ffb8b8";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "#fff";
-                  e.currentTarget.style.borderColor = "#e5e7eb";
+                  e.currentTarget.style.background = "#fff0f0";
+                  e.currentTarget.style.borderColor = "#ffd6d6";
                 }}
               >
-                Galería Prompts
+                <span>Galería Prompts</span>
+                <span style={{ fontSize: 18 }}>📝</span>
               </Link>
 
-              {/* 5. Optimizador Espacio */}
+              {/* 5. Optimizador Espacio - 🚀 */}
               <Link
                 href="/cleanup"
                 onClick={() => setOpen(false)}
                 style={{
                   padding: "14px 16px",
-                  background: "#fff",
+                  background: "#fff0f0",
                   borderRadius: 12,
-                  border: "1px solid #e5e7eb",
+                  border: "1px solid #ffd6d6",
                   marginBottom: 12,
                   fontWeight: 600,
-                  color: "#111827",
+                  color: "#1f2937",
                   textDecoration: "none",
                   transition: "all 0.2s ease",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "#f9fafb";
-                  e.currentTarget.style.borderColor = "#d1d5db";
+                  e.currentTarget.style.background = "#ffe4e4";
+                  e.currentTarget.style.borderColor = "#ffb8b8";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "#fff";
-                  e.currentTarget.style.borderColor = "#e5e7eb";
+                  e.currentTarget.style.background = "#fff0f0";
+                  e.currentTarget.style.borderColor = "#ffd6d6";
                 }}
               >
-                Optimizador Espacio
+                <span>Optimizador Espacio</span>
+                <span style={{ fontSize: 18 }}>🚀</span>
               </Link>
 
               <p style={{ marginTop: "auto", color: "#9ca3af", fontSize: 12 }}>
