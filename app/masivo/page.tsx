@@ -5,6 +5,7 @@ import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import { PRESETS } from "../../lib/presets";
 import ImageEditor from "../components/ImageEditor";
+import PromptSelector from "../components/PromptSelector";
 
 /* ===========================
    Utils
@@ -940,6 +941,31 @@ export default function Page() {
     });
     
     closeImageEditor();
+  };
+
+  /* ====== Estados para PromptSelector ====== */
+  const [showPromptSelector, setShowPromptSelector] = useState(false);
+  const [selectorForPresetId, setSelectorForPresetId] = useState<string | null>(null);
+
+  const openPromptSelector = (presetId: string) => {
+    setSelectorForPresetId(presetId);
+    setShowPromptSelector(true);
+  };
+
+  const closePromptSelector = () => {
+    setShowPromptSelector(false);
+    setSelectorForPresetId(null);
+  };
+
+  const handleSelectPrompt = (promptContent: string) => {
+    if (!selectorForPresetId) return;
+    
+    setEditedPrompts((prev) => ({
+      ...prev,
+      [selectorForPresetId]: promptContent,
+    }));
+    
+    closePromptSelector();
   };
 
   const openEditPrompt = (presetId: string) => {
@@ -2143,6 +2169,16 @@ export default function Page() {
                     {displayName.toUpperCase()}
                   </div>
                   <div style={{ display: "flex", gap: 6 }}>
+                    {/* Botón "📋" - Selector de Prompts */}
+                    <button
+                      className="icon-btn"
+                      onClick={() => openPromptSelector(p.id)}
+                      title="Galería de prompts"
+                      aria-label="Galería de prompts"
+                      style={{ background: "#ffffffa0", color: "#111", padding: "4px 8px", fontWeight: 800 }}
+                    >
+                      📋
+                    </button>
                     {/* Botón "P" - Editar Prompt */}
                     <button
                       className="icon-btn"
@@ -2529,6 +2565,15 @@ export default function Page() {
             onCancel={closeImageEditor}
           />
         </div>
+      )}
+
+      {/* PromptSelector Modal */}
+      {showPromptSelector && selectorForPresetId && (
+        <PromptSelector
+          onSelect={handleSelectPrompt}
+          onClose={closePromptSelector}
+          currentPrompt={editedPrompts[selectorForPresetId] || mapById.get(selectorForPresetId)?.prompt || ""}
+        />
       )}
     </div>
   );
