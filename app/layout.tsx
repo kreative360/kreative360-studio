@@ -69,7 +69,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 Kreative 360º
               </h1>
 
-              {/* MASIVO */}
+              {/* 1. Panel Masivo */}
               <Link
                 href="/masivo"
                 onClick={() => setOpen(false)}
@@ -77,35 +77,26 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   padding: "14px 16px",
                   background: "#fff",
                   borderRadius: 12,
-                  border: "1px solid #ddd",
+                  border: "1px solid #e5e7eb",
                   marginBottom: 12,
                   fontWeight: 600,
-                  color: "#000",
+                  color: "#111827",
                   textDecoration: "none",
+                  transition: "all 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "#f9fafb";
+                  e.currentTarget.style.borderColor = "#d1d5db";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "#fff";
+                  e.currentTarget.style.borderColor = "#e5e7eb";
                 }}
               >
-                Generador de Imágenes Masivo
+                Panel Masivo
               </Link>
 
-              {/* PROYECTOS */}
-              <Link
-                href="/projects"
-                onClick={() => setOpen(false)}
-                style={{
-                  padding: "14px 16px",
-                  background: "#e9fff2",
-                  borderRadius: 12,
-                  border: "1px solid #22c55e",
-                  marginBottom: 12,
-                  fontWeight: 700,
-                  color: "#15803d",
-                  textDecoration: "none",
-                }}
-              >
-                Proyectos
-              </Link>
-
-              {/* PICTULAB */}
+              {/* 2. Panel Pictulab */}
               <Link
                 href="/pictulab"
                 onClick={() => setOpen(false)}
@@ -113,35 +104,107 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   padding: "14px 16px",
                   background: "#fff",
                   borderRadius: 12,
-                  border: "1px solid #ddd",
+                  border: "1px solid #e5e7eb",
                   marginBottom: 12,
                   fontWeight: 600,
-                  color: "#000",
+                  color: "#111827",
                   textDecoration: "none",
+                  transition: "all 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "#f9fafb";
+                  e.currentTarget.style.borderColor = "#d1d5db";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "#fff";
+                  e.currentTarget.style.borderColor = "#e5e7eb";
                 }}
               >
-                Panel PicTULAB
+                Panel Pictulab
               </Link>
 
-              {/* 🆕 LIMPIEZA */}
+              {/* 3. Galería Proyectos */}
+              <Link
+                href="/projects"
+                onClick={() => setOpen(false)}
+                style={{
+                  padding: "14px 16px",
+                  background: "#fff",
+                  borderRadius: 12,
+                  border: "1px solid #e5e7eb",
+                  marginBottom: 12,
+                  fontWeight: 600,
+                  color: "#111827",
+                  textDecoration: "none",
+                  transition: "all 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "#f9fafb";
+                  e.currentTarget.style.borderColor = "#d1d5db";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "#fff";
+                  e.currentTarget.style.borderColor = "#e5e7eb";
+                }}
+              >
+                Galería Proyectos
+              </Link>
+
+              {/* 4. Galería Prompts - NUEVO */}
+              <Link
+                href="/prompts"
+                onClick={() => setOpen(false)}
+                style={{
+                  padding: "14px 16px",
+                  background: "#fff",
+                  borderRadius: 12,
+                  border: "1px solid #e5e7eb",
+                  marginBottom: 12,
+                  fontWeight: 600,
+                  color: "#111827",
+                  textDecoration: "none",
+                  transition: "all 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "#f9fafb";
+                  e.currentTarget.style.borderColor = "#d1d5db";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "#fff";
+                  e.currentTarget.style.borderColor = "#e5e7eb";
+                }}
+              >
+                Galería Prompts
+              </Link>
+
+              {/* 5. Optimizador Espacio */}
               <Link
                 href="/cleanup"
                 onClick={() => setOpen(false)}
                 style={{
                   padding: "14px 16px",
-                  background: "#fff5f5",
+                  background: "#fff",
                   borderRadius: 12,
-                  border: "1px solid #fca5a5",
+                  border: "1px solid #e5e7eb",
                   marginBottom: 12,
                   fontWeight: 600,
-                  color: "#991b1b",
+                  color: "#111827",
                   textDecoration: "none",
+                  transition: "all 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "#f9fafb";
+                  e.currentTarget.style.borderColor = "#d1d5db";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "#fff";
+                  e.currentTarget.style.borderColor = "#e5e7eb";
                 }}
               >
-                🧹 Limpieza
+                Optimizador Espacio
               </Link>
 
-              <p style={{ marginTop: "auto", color: "#666", fontSize: 12 }}>
+              <p style={{ marginTop: "auto", color: "#9ca3af", fontSize: 12 }}>
                 © 2025 Kreative 360º
               </p>
             </div>
