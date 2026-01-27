@@ -1114,11 +1114,48 @@ export default function Page() {
     });
   };
   const clearAllCustomRefs = () => {
-    if (!Object.keys(customRefs).length) return;
-    const ok = confirm("¿Eliminar TODAS las imágenes de referencia de las tarjetas Custom? No afectará a prompts ni resultados.");
+    const customKeys = Object.keys(customRefs);
+    const customPrompts = Object.keys(editedPrompts).filter(k => k.startsWith("custom-"));
+    const customNames = Object.keys(nameOverrides).filter(k => k.startsWith("custom-"));
+    
+    if (!customKeys.length && !customPrompts.length && !customNames.length) {
+      alert("Las tarjetas Custom ya están vacías.");
+      return;
+    }
+    
+    const ok = confirm(
+      "¿Reiniciar TODAS las tarjetas Custom a estado de fábrica?\n\n" +
+      "Esto eliminará:\n" +
+      "• Todas las imágenes de referencia\n" +
+      "• Todos los prompts personalizados\n" +
+      "• Todos los nombres personalizados\n\n" +
+      "No afectará a las imágenes generadas."
+    );
+    
     if (!ok) return;
+    
+    // Limpiar imágenes de referencia
     localStorage.removeItem(LS_CUSTOM_REFS);
     setCustomRefs({});
+    
+    // Limpiar prompts y nombres de tarjetas Custom
+    setEditedPrompts(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(k => {
+        if (k.startsWith("custom-")) delete next[k];
+      });
+      return next;
+    });
+    
+    setNameOverrides(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(k => {
+        if (k.startsWith("custom-")) delete next[k];
+      });
+      return next;
+    });
+    
+    alert("✅ Tarjetas Custom reiniciadas correctamente");
   };
 
   /* ====== Generar (declaración de función HOISTED) ====== */
@@ -2237,38 +2274,64 @@ export default function Page() {
                     : "")}
                 </div>
 
-                {/* 🆕 Zona para imagen de referencia (solo custom-*) - COLAPSADA POR DEFECTO */}
+                {/* 🆕 Zona para imagen de referencia (solo custom-*) - CON BOTÓN URL */}
                 {isCustom && (
                   <div style={{ marginTop: 10 }}>
                     {!refImg ? (
-                      /* ESTADO COLAPSADO: Solo botón pequeño */
-                      <label
-                        style={{
-                          display: "block",
-                          textAlign: "center",
-                          padding: "10px 12px",
-                          background: "#fff",
-                          border: "1px solid #e5e7eb",
-                          borderRadius: 10,
-                          fontWeight: 600,
-                          fontSize: 13,
-                          color: "#374151",
-                          cursor: "pointer",
-                        }}
-                        title="Subir imagen de referencia"
-                      >
-                        + Añadir imagen de referencia
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0] || null;
-                            e.currentTarget.value = "";
-                            addCustomRefFromFile(p.id, file);
+                      /* ESTADO COLAPSADO: Botón subir + Botón URL */
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <label
+                          style={{
+                            flex: 1,
+                            textAlign: "center",
+                            padding: "10px 12px",
+                            background: "#fff",
+                            border: "1px solid #e5e7eb",
+                            borderRadius: 10,
+                            fontWeight: 600,
+                            fontSize: 13,
+                            color: "#374151",
+                            cursor: "pointer",
                           }}
-                          style={{ display: "none" }}
-                        />
-                      </label>
+                          title="Subir imagen desde tu PC"
+                        >
+                          📁 Subir archivo
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0] || null;
+                              e.currentTarget.value = "";
+                              addCustomRefFromFile(p.id, file);
+                            }}
+                            style={{ display: "none" }}
+                          />
+                        </label>
+
+                        <button
+                          onClick={() => {
+                            const url = prompt("Pega la URL de la imagen (https://...):");
+                            if (url?.trim()) {
+                              addCustomRefFromUrl(p.id, url.trim());
+                            }
+                          }}
+                          style={{
+                            flex: 1,
+                            textAlign: "center",
+                            padding: "10px 12px",
+                            background: "#fff",
+                            border: "1px solid #e5e7eb",
+                            borderRadius: 10,
+                            fontWeight: 600,
+                            fontSize: 13,
+                            color: "#374151",
+                            cursor: "pointer",
+                          }}
+                          title="Añadir imagen desde URL"
+                        >
+                          🔗 Añadir URL
+                        </button>
+                      </div>
                     ) : (
                       /* ESTADO EXPANDIDO: Imagen grande + controles */
                       <div style={{ background: "#0b0c0e", border: "1px solid #2a2d31", borderRadius: 12, padding: 10 }}>
@@ -2453,24 +2516,31 @@ export default function Page() {
             padding: 16,
             zIndex: 9999,
             cursor: "zoom-out",
+            overflow: "auto",
           }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
               maxWidth: "90vw",
-              maxHeight: "90vh",
+              maxHeight: "85vh",
               position: "relative",
               cursor: "default",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 16,
+              paddingBottom: 20,
             }}
           >
-            <div style={{ position: "relative", display: "inline-block" }}>
+            <div style={{ position: "relative", display: "inline-block", maxHeight: "75vh" }}>
               <img
                 id="zoom-image"
                 src={lightbox.src}
                 alt="preview"
                 style={{
-                  maxWidth: "90vw", maxHeight: "90vh",
+                  maxWidth: "90vw",
+                  maxHeight: "75vh",
                   objectFit: "contain",
                   borderRadius: 12,
                   boxShadow: "0 20px 60px rgba(0,0,0,.5)",
@@ -2492,17 +2562,19 @@ export default function Page() {
               />
             </div>
 
-            <div style={{ marginTop: 12, textAlign: "center" }}>
+            <div style={{ textAlign: "center", paddingTop: 8 }}>
               <a
                 href={lightbox.src}
                 download={lightbox.name || undefined}
                 style={{
                   marginRight: 12,
-                  padding: "8px 14px",
+                  padding: "10px 16px",
                   background: "var(--brand-accent)",
                   color: "var(--brand-accent-ink)",
                   borderRadius: 8,
                   fontWeight: 700,
+                  textDecoration: "none",
+                  display: "inline-block",
                 }}
               >
                 Descargar
@@ -2510,11 +2582,13 @@ export default function Page() {
               <button
                 onClick={closeLightbox}
                 style={{
-                  padding: "8px 14px",
+                  padding: "10px 16px",
                   background: "#22252A",
                   color: "#fff",
                   borderRadius: 8,
                   fontWeight: 700,
+                  border: "none",
+                  cursor: "pointer",
                 }}
               >
                 Cerrar (Esc)
