@@ -10,7 +10,7 @@ type Prompt = {
   id: string;
   title: string;
   content: string;
-  folderId: string;
+  folderId: string | null; // Puede no estar en ninguna carpeta
   isFavorite: boolean;
   tags: string[];
   createdAt: string;
@@ -21,7 +21,6 @@ type Folder = {
   id: string;
   name: string;
   icon: string;
-  isBase?: boolean;
 };
 
 /* ===========================
@@ -32,12 +31,22 @@ export default function PromptsPage() {
   // Estados
   const [folders, setFolders] = useState<Folder[]>([]);
   const [prompts, setPrompts] = useState<Prompt[]>([]);
-  const [selectedFolderId, setSelectedFolderId] = useState<string>("base");
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null); // null = todos
   const [searchQuery, setSearchQuery] = useState("");
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
   const [showNewPromptModal, setShowNewPromptModal] = useState(false);
   const [showNewFolderModal, setShowNewFolderModal] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState<Prompt | null>(null);
+  const [editingFolder, setEditingFolder] = useState<Folder | null>(null);
+
+  // Form states
+  const [newPromptTitle, setNewPromptTitle] = useState("");
+  const [newPromptContent, setNewPromptContent] = useState("");
+  const [newPromptTags, setNewPromptTags] = useState("");
+  const [newPromptFolder, setNewPromptFolder] = useState<string | null>(null);
+  
+  const [newFolderName, setNewFolderName] = useState("");
+  const [newFolderIcon, setNewFolderIcon] = useState("📁");
 
   // Cargar datos de localStorage
   useEffect(() => {
@@ -46,18 +55,23 @@ export default function PromptsPage() {
       const savedPrompts = localStorage.getItem("kreative-prompts");
       
       if (savedFolders) {
-        setFolders(JSON.parse(savedFolders));
-      } else {
-        // Carpeta base por defecto
-        const defaultFolders: Folder[] = [
-          { id: "base", name: "Prompts Base", icon: "📝", isBase: true }
-        ];
-        setFolders(defaultFolders);
-        localStorage.setItem("kreative-prompt-folders", JSON.stringify(defaultFolders));
+        const loadedFolders = JSON.parse(savedFolders);
+        // 🗑️ Eliminar carpeta "Prompts Base" (legacy)
+        const cleanedFolders = loadedFolders.filter((f: Folder) => f.id !== "base" && !f.isBase);
+        setFolders(cleanedFolders);
+        // Guardar versión limpia
+        localStorage.setItem("kreative-prompt-folders", JSON.stringify(cleanedFolders));
       }
       
       if (savedPrompts) {
-        setPrompts(JSON.parse(savedPrompts));
+        const loadedPrompts = JSON.parse(savedPrompts);
+        // 🗑️ Mover prompts de carpeta "base" a null
+        const cleanedPrompts = loadedPrompts.map((p: Prompt) => 
+          p.folderId === "base" ? { ...p, folderId: null } : p
+        );
+        setPrompts(cleanedPrompts);
+        // Guardar versión limpia
+        localStorage.setItem("kreative-prompts", JSON.stringify(cleanedPrompts));
       }
     } catch (e) {
       console.error("Error cargando prompts:", e);
@@ -83,7 +97,7 @@ export default function PromptsPage() {
 
   // Filtrar prompts
   const filteredPrompts = prompts.filter(p => {
-    const matchesFolder = p.folderId === selectedFolderId;
+    const matchesFolder = selectedFolderId === null || p.folderId === selectedFolderId;
     const matchesFavorite = !showOnlyFavorites || p.isFavorite;
     const matchesSearch = !searchQuery || 
       p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -93,22 +107,28 @@ export default function PromptsPage() {
     return matchesFolder && matchesFavorite && matchesSearch;
   });
 
-  // Funciones
-  const createPrompt = (data: Omit<Prompt, "id" | "createdAt" | "updatedAt">) => {
+  // Funciones para prompts
+  const createPrompt = () => {
+    if (!newPromptTitle.trim()) return;
+    
     const newPrompt: Prompt = {
-      ...data,
       id: `prompt-${Date.now()}`,
+      title: newPromptTitle.trim(),
+      content: newPromptContent.trim(),
+      folderId: newPromptFolder,
+      isFavorite: false,
+      tags: newPromptTags.split(",").map(t => t.trim()).filter(Boolean),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+    
     setPrompts([...prompts, newPrompt]);
+    closeNewPromptModal();
   };
 
-  const updatePrompt = (id: string, data: Partial<Prompt>) => {
+  const updatePrompt = (id: string, updates: Partial<Prompt>) => {
     setPrompts(prompts.map(p => 
-      p.id === id 
-        ? { ...p, ...data, updatedAt: new Date().toISOString() }
-        : p
+      p.id === id ? { ...p, ...updates, updatedAt: new Date().toISOString() } : p
     ));
   };
 
@@ -122,937 +142,873 @@ export default function PromptsPage() {
     updatePrompt(id, { isFavorite: !prompts.find(p => p.id === id)?.isFavorite });
   };
 
-  const createFolder = (name: string, icon: string) => {
+  // Funciones para carpetas
+  const createFolder = () => {
+    if (!newFolderName.trim()) return;
+    
     const newFolder: Folder = {
       id: `folder-${Date.now()}`,
-      name,
-      icon,
+      name: newFolderName.trim(),
+      icon: newFolderIcon,
     };
+    
     setFolders([...folders, newFolder]);
+    closeNewFolderModal();
   };
 
   const deleteFolder = (id: string) => {
-    const folder = folders.find(f => f.id === id);
-    if (folder?.isBase) {
-      alert("No puedes eliminar la carpeta base");
-      return;
-    }
-    
-    const hasPrompts = prompts.some(p => p.folderId === id);
-    if (hasPrompts) {
-      if (!confirm("Esta carpeta tiene prompts. ¿Eliminar carpeta y mover prompts a Base?")) {
-        return;
-      }
-      // Mover prompts a Base
+    if (confirm("¿Eliminar esta carpeta? Los prompts dentro no se eliminarán.")) {
+      setFolders(folders.filter(f => f.id !== id));
+      // Mover prompts de esta carpeta a "sin carpeta"
       setPrompts(prompts.map(p => 
-        p.folderId === id ? { ...p, folderId: "base" } : p
+        p.folderId === id ? { ...p, folderId: null } : p
       ));
-    }
-    
-    setFolders(folders.filter(f => f.id !== id));
-    if (selectedFolderId === id) {
-      setSelectedFolderId("base");
+      if (selectedFolderId === id) {
+        setSelectedFolderId(null);
+      }
     }
   };
 
-  const currentFolder = folders.find(f => f.id === selectedFolderId);
-  const totalPrompts = prompts.length;
-  const favoriteCount = prompts.filter(p => p.isFavorite).length;
+  // Modales
+  const openNewPromptModal = () => {
+    setNewPromptTitle("");
+    setNewPromptContent("");
+    setNewPromptTags("");
+    setNewPromptFolder(selectedFolderId);
+    setShowNewPromptModal(true);
+  };
+
+  const closeNewPromptModal = () => {
+    setShowNewPromptModal(false);
+    setNewPromptTitle("");
+    setNewPromptContent("");
+    setNewPromptTags("");
+    setNewPromptFolder(null);
+  };
+
+  const openNewFolderModal = () => {
+    setNewFolderName("");
+    setNewFolderIcon("📁");
+    setShowNewFolderModal(true);
+  };
+
+  const closeNewFolderModal = () => {
+    setShowNewFolderModal(false);
+    setNewFolderName("");
+    setNewFolderIcon("📁");
+  };
+
+  const openEditPromptModal = (prompt: Prompt) => {
+    setEditingPrompt(prompt);
+    setNewPromptTitle(prompt.title);
+    setNewPromptContent(prompt.content);
+    setNewPromptTags(prompt.tags.join(", "));
+    setNewPromptFolder(prompt.folderId);
+    setShowNewPromptModal(true);
+  };
+
+  const saveEditedPrompt = () => {
+    if (!editingPrompt) return;
+    
+    updatePrompt(editingPrompt.id, {
+      title: newPromptTitle.trim(),
+      content: newPromptContent.trim(),
+      tags: newPromptTags.split(",").map(t => t.trim()).filter(Boolean),
+      folderId: newPromptFolder,
+    });
+    
+    setEditingPrompt(null);
+    closeNewPromptModal();
+  };
+
+  const iconOptions = ["📁", "🎨", "💼", "🏢", "🎯", "⭐", "🔥", "💡", "🚀", "📦"];
+
+  const folderCounts = folders.map(f => ({
+    ...f,
+    count: prompts.filter(p => p.folderId === f.id).length
+  }));
+
+  const uncategorizedCount = prompts.filter(p => p.folderId === null).length;
 
   return (
-    <div style={{ display: "flex", height: "100vh", background: "#f9fafb" }}>
-      {/* Sidebar */}
-      <aside style={{
-        width: 256,
-        background: "#fff",
-        borderRight: "1px solid #e5e7eb",
-        display: "flex",
-        flexDirection: "column",
-        padding: 20,
+    <div style={{ 
+      minHeight: "100vh", 
+      background: "#f9fafb",
+      padding: "24px"
+    }}>
+      {/* Header */}
+      <div style={{ 
+        maxWidth: 1400, 
+        margin: "0 auto",
+        marginBottom: 32
       }}>
-        {/* Header */}
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
-            <div style={{
-              width: 40,
-              height: 40,
-              background: "#ff6b6b",
-              borderRadius: 10,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 20,
+        <div style={{ 
+          display: "flex", 
+          alignItems: "center", 
+          justifyContent: "space-between",
+          marginBottom: 8
+        }}>
+          <div>
+            <h1 style={{ 
+              fontSize: 32, 
+              fontWeight: 800, 
+              color: "#ff6b6b",
+              margin: 0,
+              marginBottom: 4
             }}>
-              ✨
+              Galería de Prompts
+            </h1>
+            <p style={{ 
+              fontSize: 16, 
+              color: "#6b7280", 
+              margin: 0 
+            }}>
+              Kreative 360º
+            </p>
+          </div>
+
+          {/* Contadores */}
+          <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: "#111827" }}>
+                {prompts.length}
+              </div>
+              <div style={{ fontSize: 12, color: "#6b7280" }}>Total</div>
             </div>
-            <div>
-              <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Kreative 360º</h2>
-              <p style={{ margin: 0, fontSize: 12, color: "#6b7280" }}>Prompts</p>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: "#ff6b6b" }}>
+                ⭐ {prompts.filter(p => p.isFavorite).length}
+              </div>
+              <div style={{ fontSize: 12, color: "#6b7280" }}>Favoritos</div>
             </div>
           </div>
         </div>
 
-        {/* Navigation */}
-        <nav style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{
-            padding: "8px 12px",
-            borderRadius: 8,
-            background: "#ff6b6b",
-            color: "#fff",
-            fontWeight: 600,
-            fontSize: 14,
-            cursor: "pointer",
-          }}>
-            📝 Prompts
-          </div>
-          
-          <div style={{
-            padding: "8px 12px",
-            borderRadius: 8,
-            color: "#6b7280",
-            fontWeight: 600,
-            fontSize: 14,
-            cursor: "pointer",
-          }}
-          onClick={() => window.location.href = "/masivo"}
-          >
-            🎨 Generar imágenes
-          </div>
-
-          <div style={{
-            padding: "8px 12px",
-            borderRadius: 8,
-            color: "#6b7280",
-            fontWeight: 600,
-            fontSize: 14,
-            cursor: "pointer",
-          }}
-          onClick={() => window.location.href = "/projects"}
-          >
-            📁 Proyectos
-          </div>
-
-          {/* Carpetas */}
-          <div style={{ marginTop: 24 }}>
-            <div style={{
+        {/* Barra de acciones */}
+        <div style={{ 
+          display: "flex", 
+          gap: 12, 
+          alignItems: "center",
+          marginBottom: 20
+        }}>
+          {/* Filtro favoritos */}
+          <button
+            onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
+            style={{
+              padding: "10px 16px",
+              background: showOnlyFavorites ? "#fff7ed" : "#fff",
+              border: "1px solid",
+              borderColor: showOnlyFavorites ? "#ff6b6b" : "#e5e7eb",
+              borderRadius: 10,
+              fontWeight: 600,
+              color: showOnlyFavorites ? "#ff6b6b" : "#6b7280",
+              cursor: "pointer",
               display: "flex",
-              justifyContent: "space-between",
               alignItems: "center",
-              marginBottom: 12,
-              paddingLeft: 12,
-            }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase" }}>
-                Carpetas
-              </span>
+              gap: 6,
+            }}
+          >
+            ⭐ Solo favoritos
+          </button>
+
+          {/* Buscador */}
+          <input
+            type="text"
+            placeholder="Buscar por título, contenido o tags..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              flex: 1,
+              padding: "10px 16px",
+              border: "1px solid #e5e7eb",
+              borderRadius: 10,
+              fontSize: 14,
+              outline: "none",
+            }}
+          />
+
+          {/* Botones de acción */}
+          <button
+            onClick={openNewFolderModal}
+            style={{
+              padding: "10px 16px",
+              background: "#fff",
+              border: "1px solid #e5e7eb",
+              borderRadius: 10,
+              fontWeight: 600,
+              color: "#374151",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            + Nueva carpeta
+          </button>
+
+          <button
+            onClick={openNewPromptModal}
+            style={{
+              padding: "10px 20px",
+              background: "#ff6b6b",
+              border: "none",
+              borderRadius: 10,
+              fontWeight: 700,
+              color: "#fff",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            + Nuevo prompt
+          </button>
+        </div>
+
+        {/* Filtros de carpetas */}
+        <div style={{ 
+          display: "flex", 
+          gap: 8, 
+          flexWrap: "wrap",
+          alignItems: "center"
+        }}>
+          <button
+            onClick={() => setSelectedFolderId(null)}
+            style={{
+              padding: "8px 14px",
+              background: selectedFolderId === null ? "#ff6b6b" : "#fff",
+              border: "1px solid",
+              borderColor: selectedFolderId === null ? "#ff6b6b" : "#e5e7eb",
+              borderRadius: 8,
+              fontWeight: 600,
+              fontSize: 13,
+              color: selectedFolderId === null ? "#fff" : "#6b7280",
+              cursor: "pointer",
+            }}
+          >
+            📋 Todos ({prompts.length})
+          </button>
+
+          <button
+            onClick={() => setSelectedFolderId(null)}
+            style={{
+              padding: "8px 14px",
+              background: selectedFolderId === null ? "#f3f4f6" : "#fff",
+              border: "1px solid #e5e7eb",
+              borderRadius: 8,
+              fontWeight: 600,
+              fontSize: 13,
+              color: "#6b7280",
+              cursor: "pointer",
+            }}
+          >
+            📄 Sin carpeta ({uncategorizedCount})
+          </button>
+
+          {folderCounts.map(folder => (
+            <div key={folder.id} style={{ position: "relative" }}>
               <button
-                onClick={() => setShowNewFolderModal(true)}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "#ff6b6b",
-                  cursor: "pointer",
-                  fontSize: 18,
-                  padding: 4,
-                }}
-                title="Nueva carpeta"
-              >
-                +
-              </button>
-            </div>
-            
-            {folders.map(folder => (
-              <div
-                key={folder.id}
                 onClick={() => setSelectedFolderId(folder.id)}
                 style={{
-                  padding: "8px 12px",
+                  padding: "8px 14px",
+                  background: selectedFolderId === folder.id ? "#ff6b6b" : "#fff",
+                  border: "1px solid",
+                  borderColor: selectedFolderId === folder.id ? "#ff6b6b" : "#e5e7eb",
                   borderRadius: 8,
-                  background: selectedFolderId === folder.id ? "#fff1f0" : "transparent",
-                  color: selectedFolderId === folder.id ? "#ff6b6b" : "#6b7280",
-                  fontWeight: selectedFolderId === folder.id ? 600 : 400,
-                  fontSize: 14,
+                  fontWeight: 600,
+                  fontSize: 13,
+                  color: selectedFolderId === folder.id ? "#fff" : "#6b7280",
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "space-between",
-                  marginBottom: 4,
+                  gap: 6,
                 }}
               >
-                <span>
-                  {folder.icon} {folder.name}
-                </span>
-                {!folder.isBase && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteFolder(folder.id);
-                    }}
-                    style={{
-                      background: "transparent",
-                      border: "none",
-                      color: "#9ca3af",
-                      cursor: "pointer",
-                      padding: 2,
-                      fontSize: 14,
-                    }}
-                    title="Eliminar carpeta"
-                  >
-                    ×
-                  </button>
+                <span>{folder.icon}</span>
+                <span>{folder.name}</span>
+                <span>({folder.count})</span>
+              </button>
+              <button
+                onClick={() => deleteFolder(folder.id)}
+                style={{
+                  position: "absolute",
+                  top: -6,
+                  right: -6,
+                  width: 20,
+                  height: 20,
+                  borderRadius: "50%",
+                  background: "#ef4444",
+                  color: "#fff",
+                  border: "2px solid #fff",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+                title="Eliminar carpeta"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Grid de prompts */}
+      <div style={{ maxWidth: 1400, margin: "0 auto" }}>
+        {filteredPrompts.length === 0 ? (
+          <div style={{
+            textAlign: "center",
+            padding: "80px 20px",
+          }}>
+            <div style={{ fontSize: 64, marginBottom: 16 }}>✨</div>
+            <h2 style={{ 
+              fontSize: 24, 
+              fontWeight: 700, 
+              color: "#111827",
+              marginBottom: 8
+            }}>
+              {prompts.length === 0 
+                ? "Aún no tienes prompts" 
+                : "No se encontraron prompts"}
+            </h2>
+            <p style={{ 
+              fontSize: 14, 
+              color: "#6b7280",
+              marginBottom: 24
+            }}>
+              {prompts.length === 0
+                ? "Comienza creando tu primer prompt para generar imágenes increíbles con IA"
+                : "Intenta con otra búsqueda o filtro"}
+            </p>
+            {prompts.length === 0 && (
+              <button
+                onClick={openNewPromptModal}
+                style={{
+                  padding: "12px 24px",
+                  background: "#ff6b6b",
+                  border: "none",
+                  borderRadius: 10,
+                  fontWeight: 700,
+                  color: "#fff",
+                  cursor: "pointer",
+                  fontSize: 14,
+                }}
+              >
+                + Crear mi primer prompt
+              </button>
+            )}
+          </div>
+        ) : (
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+            gap: 20,
+          }}>
+            {filteredPrompts.map(prompt => (
+              <div
+                key={prompt.id}
+                style={{
+                  background: "#fff",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 14,
+                  padding: 18,
+                  position: "relative",
+                  transition: "all 0.2s ease",
+                  cursor: "pointer",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.boxShadow = "0 10px 24px rgba(0,0,0,0.1)";
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.boxShadow = "none";
+                  e.currentTarget.style.transform = "translateY(0)";
+                }}
+              >
+                {/* Header de la tarjeta */}
+                <div style={{ 
+                  display: "flex", 
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                  marginBottom: 12
+                }}>
+                  <h3 style={{
+                    fontSize: 16,
+                    fontWeight: 700,
+                    color: "#111827",
+                    margin: 0,
+                    flex: 1,
+                  }}>
+                    {prompt.title}
+                  </h3>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleFavorite(prompt.id);
+                      }}
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        fontSize: 20,
+                        cursor: "pointer",
+                        padding: 4,
+                      }}
+                    >
+                      {prompt.isFavorite ? "⭐" : "☆"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Contenido del prompt */}
+                <p style={{
+                  fontSize: 13,
+                  color: "#6b7280",
+                  lineHeight: 1.6,
+                  margin: "0 0 12px 0",
+                  maxHeight: 80,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  display: "-webkit-box",
+                  WebkitLineClamp: 3,
+                  WebkitBoxOrient: "vertical",
+                }}>
+                  {prompt.content}
+                </p>
+
+                {/* Tags */}
+                {prompt.tags.length > 0 && (
+                  <div style={{ 
+                    display: "flex", 
+                    gap: 6, 
+                    flexWrap: "wrap",
+                    marginBottom: 12
+                  }}>
+                    {prompt.tags.map(tag => (
+                      <span
+                        key={tag}
+                        style={{
+                          padding: "4px 10px",
+                          background: "#f3f4f6",
+                          borderRadius: 6,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: "#6b7280",
+                        }}
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
                 )}
+
+                {/* Carpeta */}
+                {prompt.folderId && (
+                  <div style={{ marginBottom: 12 }}>
+                    <span style={{
+                      padding: "4px 10px",
+                      background: "#fff0f0",
+                      border: "1px solid #ffd6d6",
+                      borderRadius: 6,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: "#ff6b6b",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}>
+                      {folders.find(f => f.id === prompt.folderId)?.icon}
+                      {folders.find(f => f.id === prompt.folderId)?.name}
+                    </span>
+                  </div>
+                )}
+
+                {/* Acciones */}
+                <div style={{ 
+                  display: "flex", 
+                  gap: 8,
+                  paddingTop: 12,
+                  borderTop: "1px solid #f3f4f6"
+                }}>
+                  <button
+                    onClick={() => openEditPromptModal(prompt)}
+                    style={{
+                      flex: 1,
+                      padding: "8px 12px",
+                      background: "#f9fafb",
+                      border: "1px solid #e5e7eb",
+                      borderRadius: 8,
+                      fontWeight: 600,
+                      fontSize: 13,
+                      color: "#374151",
+                      cursor: "pointer",
+                    }}
+                  >
+                    ✏️ Editar
+                  </button>
+                  <button
+                    onClick={() => deletePrompt(prompt.id)}
+                    style={{
+                      padding: "8px 12px",
+                      background: "#fff",
+                      border: "1px solid #fecaca",
+                      borderRadius: 8,
+                      fontWeight: 600,
+                      fontSize: 13,
+                      color: "#ef4444",
+                      cursor: "pointer",
+                    }}
+                  >
+                    🗑️
+                  </button>
+                </div>
               </div>
             ))}
           </div>
-        </nav>
-
-        {/* Storage info */}
-        <div style={{
-          padding: 12,
-          background: "#f9fafb",
-          borderRadius: 8,
-          fontSize: 12,
-        }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-            <span style={{ color: "#6b7280" }}>Prompts guardados</span>
-            <span style={{ fontWeight: 600 }}>{totalPrompts}</span>
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ color: "#6b7280" }}>Favoritos</span>
-            <span style={{ fontWeight: 600, color: "#ff6b6b" }}>⭐ {favoriteCount}</span>
-          </div>
-        </div>
-      </aside>
-
-      {/* Main content */}
-      <main style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {/* Header */}
-        <header style={{
-          padding: "20px 32px",
-          background: "#fff",
-          borderBottom: "1px solid #e5e7eb",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <div style={{
-                width: 48,
-                height: 48,
-                background: "#ff6b6b",
-                borderRadius: 12,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 24,
-              }}>
-                {currentFolder?.icon || "📝"}
-              </div>
-              <div>
-                <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>
-                  {currentFolder?.name || "Prompts"}
-                </h1>
-                <p style={{ margin: 0, fontSize: 14, color: "#6b7280" }}>
-                  {filteredPrompts.length} prompts en esta carpeta
-                </p>
-              </div>
-            </div>
-
-            <div style={{ display: "flex", gap: 12 }}>
-              <div style={{ display: "flex", gap: 8 }}>
-                <span style={{ fontSize: 24 }}>{totalPrompts}</span>
-                <span style={{ fontSize: 14, color: "#6b7280", alignSelf: "center" }}>Total</span>
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <span style={{ fontSize: 24, color: "#ff6b6b" }}>⭐ {favoriteCount}</span>
-                <span style={{ fontSize: 14, color: "#6b7280", alignSelf: "center" }}>Favoritos</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Filters */}
-          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-            <button
-              onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
-              style={{
-                padding: "8px 16px",
-                borderRadius: 8,
-                border: "1px solid #e5e7eb",
-                background: showOnlyFavorites ? "#fff1f0" : "#fff",
-                color: showOnlyFavorites ? "#ff6b6b" : "#6b7280",
-                fontWeight: 600,
-                fontSize: 14,
-                cursor: "pointer",
-              }}
-            >
-              ⭐ Solo favoritos
-            </button>
-
-            <input
-              type="text"
-              placeholder="Buscar por título, contenido o tags..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{
-                flex: 1,
-                padding: "8px 16px",
-                borderRadius: 8,
-                border: "1px solid #e5e7eb",
-                fontSize: 14,
-                outline: "none",
-              }}
-            />
-
-            <button
-              onClick={() => setShowNewPromptModal(true)}
-              style={{
-                padding: "8px 16px",
-                borderRadius: 8,
-                background: "#ff6b6b",
-                color: "#fff",
-                border: "none",
-                fontWeight: 700,
-                fontSize: 14,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-              }}
-            >
-              + Nuevo prompt
-            </button>
-          </div>
-        </header>
-
-        {/* Content */}
-        <div style={{
-          flex: 1,
-          overflow: "auto",
-          padding: 32,
-        }}>
-          {filteredPrompts.length === 0 ? (
-            // Empty state
-            <div style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              height: "100%",
-              textAlign: "center",
-            }}>
-              <div style={{
-                width: 120,
-                height: 120,
-                background: "#f3f4f6",
-                borderRadius: 20,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 48,
-                marginBottom: 24,
-              }}>
-                ✨
-              </div>
-              <h2 style={{ margin: 0, fontSize: 24, fontWeight: 700, marginBottom: 8 }}>
-                {searchQuery ? "No se encontraron prompts" : "Aún no tienes prompts"}
-              </h2>
-              <p style={{ margin: 0, fontSize: 16, color: "#6b7280", marginBottom: 24 }}>
-                {searchQuery 
-                  ? "Intenta con otra búsqueda"
-                  : "Comienza creando tu primer prompt para generar imágenes increíbles con IA"
-                }
-              </p>
-              {!searchQuery && (
-                <button
-                  onClick={() => setShowNewPromptModal(true)}
-                  style={{
-                    padding: "12px 24px",
-                    borderRadius: 10,
-                    background: "#ff6b6b",
-                    color: "#fff",
-                    border: "none",
-                    fontWeight: 700,
-                    fontSize: 16,
-                    cursor: "pointer",
-                  }}
-                >
-                  + Crear mi primer prompt
-                </button>
-              )}
-            </div>
-          ) : (
-            // Grid de prompts
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-              gap: 20,
-            }}>
-              {filteredPrompts.map(prompt => (
-                <PromptCard
-                  key={prompt.id}
-                  prompt={prompt}
-                  onToggleFavorite={() => toggleFavorite(prompt.id)}
-                  onEdit={() => setEditingPrompt(prompt)}
-                  onDelete={() => deletePrompt(prompt.id)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      </main>
+        )}
+      </div>
 
       {/* Modal: Nuevo/Editar Prompt */}
-      {(showNewPromptModal || editingPrompt) && (
-        <PromptModal
-          prompt={editingPrompt || undefined}
-          folderId={selectedFolderId}
-          folders={folders}
-          onSave={(data) => {
-            if (editingPrompt) {
-              updatePrompt(editingPrompt.id, data);
-              setEditingPrompt(null);
-            } else {
-              createPrompt(data);
-              setShowNewPromptModal(false);
-            }
+      {showNewPromptModal && (
+        <div
+          onClick={closeNewPromptModal}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: 20,
           }}
-          onClose={() => {
-            setShowNewPromptModal(false);
-            setEditingPrompt(null);
-          }}
-        />
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff",
+              borderRadius: 16,
+              padding: 24,
+              maxWidth: 600,
+              width: "100%",
+              maxHeight: "90vh",
+              overflow: "auto",
+            }}
+          >
+            <h2 style={{ 
+              fontSize: 20, 
+              fontWeight: 700, 
+              color: "#111827",
+              marginBottom: 20
+            }}>
+              {editingPrompt ? "Editar prompt" : "Nuevo prompt"}
+            </h2>
+
+            {/* Título */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ 
+                display: "block", 
+                fontSize: 13, 
+                fontWeight: 600,
+                color: "#374151",
+                marginBottom: 6
+              }}>
+                Título
+              </label>
+              <input
+                type="text"
+                value={newPromptTitle}
+                onChange={(e) => setNewPromptTitle(e.target.value)}
+                placeholder="Ej: Producto minimalista fondo blanco"
+                style={{
+                  width: "100%",
+                  padding: "10px 14px",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 10,
+                  fontSize: 14,
+                  outline: "none",
+                }}
+              />
+            </div>
+
+            {/* Contenido */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ 
+                display: "block", 
+                fontSize: 13, 
+                fontWeight: 600,
+                color: "#374151",
+                marginBottom: 6
+              }}>
+                Prompt
+              </label>
+              <textarea
+                value={newPromptContent}
+                onChange={(e) => setNewPromptContent(e.target.value)}
+                placeholder="Escribe tu prompt aquí..."
+                style={{
+                  width: "100%",
+                  minHeight: 150,
+                  padding: "10px 14px",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 10,
+                  fontSize: 14,
+                  outline: "none",
+                  resize: "vertical",
+                  fontFamily: "inherit",
+                  lineHeight: 1.5,
+                }}
+              />
+            </div>
+
+            {/* Carpeta */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ 
+                display: "block", 
+                fontSize: 13, 
+                fontWeight: 600,
+                color: "#374151",
+                marginBottom: 6
+              }}>
+                Carpeta (opcional)
+              </label>
+              <select
+                value={newPromptFolder || ""}
+                onChange={(e) => setNewPromptFolder(e.target.value || null)}
+                style={{
+                  width: "100%",
+                  padding: "10px 14px",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 10,
+                  fontSize: 14,
+                  outline: "none",
+                  cursor: "pointer",
+                }}
+              >
+                <option value="">Sin carpeta</option>
+                {folders.map(folder => (
+                  <option key={folder.id} value={folder.id}>
+                    {folder.icon} {folder.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Tags */}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ 
+                display: "block", 
+                fontSize: 13, 
+                fontWeight: 600,
+                color: "#374151",
+                marginBottom: 6
+              }}>
+                Tags (separados por comas)
+              </label>
+              <input
+                type="text"
+                value={newPromptTags}
+                onChange={(e) => setNewPromptTags(e.target.value)}
+                placeholder="Ej: ecommerce, minimalista, producto"
+                style={{
+                  width: "100%",
+                  padding: "10px 14px",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 10,
+                  fontSize: 14,
+                  outline: "none",
+                }}
+              />
+            </div>
+
+            {/* Botones */}
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                onClick={closeNewPromptModal}
+                style={{
+                  flex: 1,
+                  padding: "10px 16px",
+                  background: "#fff",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 10,
+                  fontWeight: 600,
+                  color: "#374151",
+                  cursor: "pointer",
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={editingPrompt ? saveEditedPrompt : createPrompt}
+                disabled={!newPromptTitle.trim()}
+                style={{
+                  flex: 1,
+                  padding: "10px 16px",
+                  background: newPromptTitle.trim() ? "#ff6b6b" : "#e5e7eb",
+                  border: "none",
+                  borderRadius: 10,
+                  fontWeight: 700,
+                  color: "#fff",
+                  cursor: newPromptTitle.trim() ? "pointer" : "not-allowed",
+                }}
+              >
+                {editingPrompt ? "Guardar cambios" : "Crear prompt"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Modal: Nueva Carpeta */}
       {showNewFolderModal && (
-        <NewFolderModal
-          onSave={(name, icon) => {
-            createFolder(name, icon);
-            setShowNewFolderModal(false);
-          }}
-          onClose={() => setShowNewFolderModal(false)}
-        />
-      )}
-    </div>
-  );
-}
-
-/* ===========================
-   COMPONENTE: PromptCard
-   =========================== */
-
-function PromptCard({
-  prompt,
-  onToggleFavorite,
-  onEdit,
-  onDelete,
-}: {
-  prompt: Prompt;
-  onToggleFavorite: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
-}) {
-  return (
-    <div style={{
-      background: "#fff",
-      border: "1px solid #e5e7eb",
-      borderRadius: 12,
-      padding: 20,
-      display: "flex",
-      flexDirection: "column",
-      gap: 12,
-      transition: "all 0.2s",
-      cursor: "pointer",
-    }}
-    onMouseEnter={(e) => {
-      e.currentTarget.style.boxShadow = "0 4px 12px rgba(255, 107, 107, 0.1)";
-      e.currentTarget.style.borderColor = "#ff6b6b";
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.boxShadow = "none";
-      e.currentTarget.style.borderColor = "#e5e7eb";
-    }}
-    >
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "start", justifyContent: "space-between" }}>
-        <h3 style={{
-          margin: 0,
-          fontSize: 16,
-          fontWeight: 700,
-          color: "#111827",
-          flex: 1,
-        }}>
-          {prompt.title}
-        </h3>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleFavorite();
-          }}
+        <div
+          onClick={closeNewFolderModal}
           style={{
-            background: "transparent",
-            border: "none",
-            fontSize: 20,
-            cursor: "pointer",
-            padding: 0,
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: 20,
           }}
         >
-          {prompt.isFavorite ? "⭐" : "☆"}
-        </button>
-      </div>
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff",
+              borderRadius: 16,
+              padding: 24,
+              maxWidth: 400,
+              width: "100%",
+            }}
+          >
+            <h2 style={{ 
+              fontSize: 20, 
+              fontWeight: 700, 
+              color: "#111827",
+              marginBottom: 20
+            }}>
+              Nueva carpeta
+            </h2>
 
-      {/* Content preview */}
-      <p style={{
-        margin: 0,
-        fontSize: 14,
-        color: "#6b7280",
-        lineHeight: "1.5",
-        maxHeight: 60,
-        overflow: "hidden",
-        textOverflow: "ellipsis",
-        display: "-webkit-box",
-        WebkitLineClamp: 3,
-        WebkitBoxOrient: "vertical",
-      }}>
-        {prompt.content}
-      </p>
-
-      {/* Tags */}
-      {prompt.tags.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-          {prompt.tags.map((tag, i) => (
-            <span
-              key={i}
-              style={{
-                padding: "4px 8px",
-                background: "#fff1f0",
-                color: "#ff6b6b",
-                borderRadius: 6,
-                fontSize: 12,
+            {/* Nombre */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ 
+                display: "block", 
+                fontSize: 13, 
                 fontWeight: 600,
-              }}
-            >
-              #{tag}
-            </span>
-          ))}
-        </div>
-      )}
+                color: "#374151",
+                marginBottom: 6
+              }}>
+                Nombre
+              </label>
+              <input
+                type="text"
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                placeholder="Ej: Prompts de Amazon"
+                style={{
+                  width: "100%",
+                  padding: "10px 14px",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 10,
+                  fontSize: 14,
+                  outline: "none",
+                }}
+              />
+            </div>
 
-      {/* Actions */}
-      <div style={{
-        display: "flex",
-        gap: 8,
-        marginTop: "auto",
-        paddingTop: 12,
-        borderTop: "1px solid #f3f4f6",
-      }}>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onEdit();
-          }}
-          style={{
-            flex: 1,
-            padding: "8px",
-            borderRadius: 8,
-            border: "1px solid #e5e7eb",
-            background: "#fff",
-            color: "#6b7280",
-            fontWeight: 600,
-            fontSize: 14,
-            cursor: "pointer",
-          }}
-        >
-          ✏️ Editar
-        </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            navigator.clipboard.writeText(prompt.content);
-            alert("Prompt copiado al portapapeles");
-          }}
-          style={{
-            flex: 1,
-            padding: "8px",
-            borderRadius: 8,
-            border: "1px solid #e5e7eb",
-            background: "#fff",
-            color: "#6b7280",
-            fontWeight: 600,
-            fontSize: 14,
-            cursor: "pointer",
-          }}
-        >
-          📋 Copiar
-        </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          style={{
-            padding: "8px",
-            borderRadius: 8,
-            border: "1px solid #fee2e2",
-            background: "#fff",
-            color: "#ef4444",
-            fontWeight: 600,
-            fontSize: 14,
-            cursor: "pointer",
-          }}
-        >
-          🗑️
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/* ===========================
-   MODAL: Nuevo/Editar Prompt
-   =========================== */
-
-function PromptModal({
-  prompt,
-  folderId,
-  folders,
-  onSave,
-  onClose,
-}: {
-  prompt?: Prompt;
-  folderId: string;
-  folders: Folder[];
-  onSave: (data: Omit<Prompt, "id" | "createdAt" | "updatedAt">) => void;
-  onClose: () => void;
-}) {
-  const [title, setTitle] = useState(prompt?.title || "");
-  const [content, setContent] = useState(prompt?.content || "");
-  const [selectedFolderId, setSelectedFolderId] = useState(prompt?.folderId || folderId);
-  const [tags, setTags] = useState(prompt?.tags.join(", ") || "");
-  const [isFavorite, setIsFavorite] = useState(prompt?.isFavorite || false);
-
-  const handleSave = () => {
-    if (!title.trim() || !content.trim()) {
-      alert("Completa el título y contenido");
-      return;
-    }
-
-    onSave({
-      title: title.trim(),
-      content: content.trim(),
-      folderId: selectedFolderId,
-      isFavorite,
-      tags: tags.split(",").map(t => t.trim()).filter(Boolean),
-    });
-  };
-
-  return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1000,
-        padding: 20,
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "#fff",
-          borderRadius: 16,
-          padding: 32,
-          maxWidth: 600,
-          width: "100%",
-          maxHeight: "90vh",
-          overflow: "auto",
-        }}
-      >
-        <h2 style={{ margin: "0 0 24px 0", fontSize: 24, fontWeight: 800 }}>
-          {prompt ? "Editar prompt" : "Nuevo prompt"}
-        </h2>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          {/* Título */}
-          <div>
-            <label style={{ display: "block", fontSize: 14, fontWeight: 600, marginBottom: 8, color: "#374151" }}>
-              Título
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Ej: Producto minimalista fondo blanco"
-              style={{
-                width: "100%",
-                padding: "12px",
-                borderRadius: 8,
-                border: "1px solid #e5e7eb",
-                fontSize: 14,
-                outline: "none",
-              }}
-            />
-          </div>
-
-          {/* Carpeta */}
-          <div>
-            <label style={{ display: "block", fontSize: 14, fontWeight: 600, marginBottom: 8, color: "#374151" }}>
-              Carpeta
-            </label>
-            <select
-              value={selectedFolderId}
-              onChange={(e) => setSelectedFolderId(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "12px",
-                borderRadius: 8,
-                border: "1px solid #e5e7eb",
-                fontSize: 14,
-                outline: "none",
-              }}
-            >
-              {folders.map(folder => (
-                <option key={folder.id} value={folder.id}>
-                  {folder.icon} {folder.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Contenido */}
-          <div>
-            <label style={{ display: "block", fontSize: 14, fontWeight: 600, marginBottom: 8, color: "#374151" }}>
-              Prompt
-            </label>
-            <textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="Escribe tu prompt aquí..."
-              style={{
-                width: "100%",
-                minHeight: 200,
-                padding: "12px",
-                borderRadius: 8,
-                border: "1px solid #e5e7eb",
-                fontSize: 14,
-                outline: "none",
-                resize: "vertical",
-                fontFamily: "inherit",
-              }}
-            />
-          </div>
-
-          {/* Tags */}
-          <div>
-            <label style={{ display: "block", fontSize: 14, fontWeight: 600, marginBottom: 8, color: "#374151" }}>
-              Tags (separados por comas)
-            </label>
-            <input
-              type="text"
-              value={tags}
-              onChange={(e) => setTags(e.target.value)}
-              placeholder="producto, minimalista, fondo blanco"
-              style={{
-                width: "100%",
-                padding: "12px",
-                borderRadius: 8,
-                border: "1px solid #e5e7eb",
-                fontSize: 14,
-                outline: "none",
-              }}
-            />
-          </div>
-
-          {/* Favorito */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <input
-              type="checkbox"
-              checked={isFavorite}
-              onChange={(e) => setIsFavorite(e.target.checked)}
-              id="favorite-check"
-              style={{ width: 18, height: 18, cursor: "pointer" }}
-            />
-            <label htmlFor="favorite-check" style={{ fontSize: 14, fontWeight: 600, color: "#374151", cursor: "pointer" }}>
-              ⭐ Marcar como favorito
-            </label>
-          </div>
-
-          {/* Actions */}
-          <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-            <button
-              onClick={onClose}
-              style={{
-                flex: 1,
-                padding: "12px",
-                borderRadius: 8,
-                border: "1px solid #e5e7eb",
-                background: "#fff",
-                color: "#6b7280",
+            {/* Icono */}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ 
+                display: "block", 
+                fontSize: 13, 
                 fontWeight: 600,
-                fontSize: 14,
-                cursor: "pointer",
-              }}
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={handleSave}
-              style={{
-                flex: 1,
-                padding: "12px",
-                borderRadius: 8,
-                border: "none",
-                background: "#ff6b6b",
-                color: "#fff",
-                fontWeight: 700,
-                fontSize: 14,
-                cursor: "pointer",
-              }}
-            >
-              {prompt ? "Guardar cambios" : "Crear prompt"}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+                color: "#374151",
+                marginBottom: 6
+              }}>
+                Icono
+              </label>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {iconOptions.map(icon => (
+                  <button
+                    key={icon}
+                    onClick={() => setNewFolderIcon(icon)}
+                    style={{
+                      width: 44,
+                      height: 44,
+                      fontSize: 24,
+                      background: newFolderIcon === icon ? "#fff0f0" : "#f9fafb",
+                      border: "2px solid",
+                      borderColor: newFolderIcon === icon ? "#ff6b6b" : "#e5e7eb",
+                      borderRadius: 10,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    {icon}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-/* ===========================
-   MODAL: Nueva Carpeta
-   =========================== */
-
-function NewFolderModal({
-  onSave,
-  onClose,
-}: {
-  onSave: (name: string, icon: string) => void;
-  onClose: () => void;
-}) {
-  const [name, setName] = useState("");
-  const [icon, setIcon] = useState("📁");
-
-  const iconOptions = ["📁", "🎨", "💼", "🏢", "🎯", "⭐", "🔥", "💡", "🚀", "📦"];
-
-  const handleSave = () => {
-    if (!name.trim()) {
-      alert("Escribe un nombre para la carpeta");
-      return;
-    }
-    onSave(name.trim(), icon);
-  };
-
-  return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1000,
-        padding: 20,
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "#fff",
-          borderRadius: 16,
-          padding: 32,
-          maxWidth: 400,
-          width: "100%",
-        }}
-      >
-        <h2 style={{ margin: "0 0 24px 0", fontSize: 24, fontWeight: 800 }}>
-          Nueva carpeta
-        </h2>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          {/* Nombre */}
-          <div>
-            <label style={{ display: "block", fontSize: 14, fontWeight: 600, marginBottom: 8, color: "#374151" }}>
-              Nombre de la carpeta
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ej: Proyecto Amazon"
-              style={{
-                width: "100%",
-                padding: "12px",
-                borderRadius: 8,
-                border: "1px solid #e5e7eb",
-                fontSize: 14,
-                outline: "none",
-              }}
-            />
-          </div>
-
-          {/* Icono */}
-          <div>
-            <label style={{ display: "block", fontSize: 14, fontWeight: 600, marginBottom: 8, color: "#374151" }}>
-              Icono
-            </label>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
-              {iconOptions.map(i => (
-                <button
-                  key={i}
-                  onClick={() => setIcon(i)}
-                  style={{
-                    padding: 12,
-                    borderRadius: 8,
-                    border: icon === i ? "2px solid #ff6b6b" : "1px solid #e5e7eb",
-                    background: icon === i ? "#fff1f0" : "#fff",
-                    fontSize: 24,
-                    cursor: "pointer",
-                  }}
-                >
-                  {i}
-                </button>
-              ))}
+            {/* Botones */}
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                onClick={closeNewFolderModal}
+                style={{
+                  flex: 1,
+                  padding: "10px 16px",
+                  background: "#fff",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 10,
+                  fontWeight: 600,
+                  color: "#374151",
+                  cursor: "pointer",
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={createFolder}
+                disabled={!newFolderName.trim()}
+                style={{
+                  flex: 1,
+                  padding: "10px 16px",
+                  background: newFolderName.trim() ? "#ff6b6b" : "#e5e7eb",
+                  border: "none",
+                  borderRadius: 10,
+                  fontWeight: 700,
+                  color: "#fff",
+                  cursor: newFolderName.trim() ? "pointer" : "not-allowed",
+                }}
+              >
+                Crear carpeta
+              </button>
             </div>
           </div>
+        </div>
+      )}
 
-          {/* Actions */}
-          <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-            <button
-              onClick={onClose}
-              style={{
-                flex: 1,
-                padding: "12px",
-                borderRadius: 8,
-                border: "1px solid #e5e7eb",
-                background: "#fff",
-                color: "#6b7280",
-                fontWeight: 600,
-                fontSize: 14,
-                cursor: "pointer",
-              }}
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={handleSave}
-              style={{
-                flex: 1,
-                padding: "12px",
-                borderRadius: 8,
-                border: "none",
-                background: "#ff6b6b",
-                color: "#fff",
-                fontWeight: 700,
-                fontSize: 14,
-                cursor: "pointer",
-              }}
-            >
-              Crear carpeta
-            </button>
-          </div>
+      {/* Footer stats */}
+      <div style={{ 
+        maxWidth: 1400, 
+        margin: "40px auto 0",
+        padding: "20px 0",
+        borderTop: "1px solid #e5e7eb",
+        display: "flex",
+        justifyContent: "space-between",
+        fontSize: 12,
+        color: "#9ca3af"
+      }}>
+        <div>
+          Prompts guardados: {prompts.length} | Favoritos: {prompts.filter(p => p.isFavorite).length}
+        </div>
+        <div>
+          © 2025 Kreative 360º
         </div>
       </div>
     </div>
