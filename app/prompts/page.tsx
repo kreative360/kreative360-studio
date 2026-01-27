@@ -57,7 +57,7 @@ export default function PromptsPage() {
       if (savedFolders) {
         const loadedFolders = JSON.parse(savedFolders);
         // 🗑️ Eliminar carpeta "Prompts Base" (legacy)
-        const cleanedFolders = loadedFolders.filter((f: Folder) => f.id !== "base" && !f.isBase);
+        const cleanedFolders = loadedFolders.filter((f: any) => f.id !== "base");
         setFolders(cleanedFolders);
         // Guardar versión limpia
         localStorage.setItem("kreative-prompt-folders", JSON.stringify(cleanedFolders));
