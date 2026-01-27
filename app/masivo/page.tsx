@@ -957,12 +957,19 @@ export default function Page() {
     setSelectorForPresetId(null);
   };
 
-  const handleSelectPrompt = (promptContent: string) => {
+  const handleSelectPrompt = (data: { title: string; content: string }) => {
     if (!selectorForPresetId) return;
     
+    // 🆕 Guardar TÍTULO en nameOverrides
+    setNameOverrides((prev) => ({
+      ...prev,
+      [selectorForPresetId]: data.title,
+    }));
+    
+    // 🆕 Guardar CONTENIDO en editedPrompts
     setEditedPrompts((prev) => ({
       ...prev,
-      [selectorForPresetId]: promptContent,
+      [selectorForPresetId]: data.content,
     }));
     
     closePromptSelector();
@@ -2230,68 +2237,41 @@ export default function Page() {
                     : "")}
                 </div>
 
-                {/* 🆕 Zona para imagen de referencia (solo custom-*) */}
+                {/* 🆕 Zona para imagen de referencia (solo custom-*) - COLAPSADA POR DEFECTO */}
                 {isCustom && (
-                  <div style={{ marginTop: 10, background: "#0b0c0e", border: "1px solid #2a2d31", borderRadius: 12, padding: 10 }}>
+                  <div style={{ marginTop: 10 }}>
                     {!refImg ? (
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
-                        <label
-                          style={{
-                            border: "1px solid #e5e7eb", borderRadius: 10,
-                            padding: "8px 12px", cursor: "pointer", background: "#fff",
-                            textAlign: "center", fontWeight: 700,
+                      /* ESTADO COLAPSADO: Solo botón pequeño */
+                      <label
+                        style={{
+                          display: "block",
+                          textAlign: "center",
+                          padding: "10px 12px",
+                          background: "#fff",
+                          border: "1px solid #e5e7eb",
+                          borderRadius: 10,
+                          fontWeight: 600,
+                          fontSize: 13,
+                          color: "#374151",
+                          cursor: "pointer",
+                        }}
+                        title="Subir imagen de referencia"
+                      >
+                        + Añadir imagen de referencia
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0] || null;
+                            e.currentTarget.value = "";
+                            addCustomRefFromFile(p.id, file);
                           }}
-                          title="Subir imagen de referencia"
-                        >
-                          + Añadir imagen de referencia
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0] || null;
-                              e.currentTarget.value = "";
-                              addCustomRefFromFile(p.id, file);
-                            }}
-                            style={{ display: "none" }}
-                          />
-                        </label>
-
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, alignItems: "center" }}>
-                          <input
-                            type="text"
-                            placeholder="o pega aquí una URL (https://...)"
-                            style={{
-                              width: "100%", borderRadius: 10, padding: "8px 10px", outline: "none",
-                              background: "#0F1113", border: "1px solid #2a2d31", color: "#E7E9EE",
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                const v = (e.target as HTMLInputElement).value;
-                                (e.target as HTMLInputElement).value = "";
-                                addCustomRefFromUrl(p.id, v);
-                              }
-                            }}
-                          />
-                          <button
-                            onClick={(e) => {
-                              const input = (e.currentTarget.parentElement?.querySelector("input[type='text']") as HTMLInputElement | null);
-                              const v = input?.value || "";
-                              if (input) input.value = "";
-                              addCustomRefFromUrl(p.id, v);
-                            }}
-                            style={{
-                              borderRadius: 10, padding: "8px 12px",
-                              background: "#fff", border: "1px solid #e5e7eb", color: "#111",
-                              fontWeight: 700, cursor: "pointer",
-                            }}
-                          >
-                            Añadir URL
-                          </button>
-                        </div>
-                      </div>
+                          style={{ display: "none" }}
+                        />
+                      </label>
                     ) : (
-                      <>
-                        {/* 🔎 Ref abre el lightbox */}
+                      /* ESTADO EXPANDIDO: Imagen grande + controles */
+                      <div style={{ background: "#0b0c0e", border: "1px solid #2a2d31", borderRadius: 12, padding: 10 }}>
                         <img
                           src={refImg}
                           alt="Referencia"
@@ -2322,7 +2302,7 @@ export default function Page() {
                             />
                           </label>
                         </div>
-                      </>
+                      </div>
                     )}
                   </div>
                 )}

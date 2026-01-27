@@ -10,7 +10,7 @@ type Prompt = {
   id: string;
   title: string;
   content: string;
-  folderId: string;
+  folderId: string | null;
   isFavorite: boolean;
   tags: string[];
   createdAt: string;
@@ -21,7 +21,6 @@ type Folder = {
   id: string;
   name: string;
   icon: string;
-  isBase?: boolean;
 };
 
 /* ===========================
@@ -33,13 +32,13 @@ export default function PromptSelector({
   onClose,
   currentPrompt = "",
 }: {
-  onSelect: (prompt: string) => void;
+  onSelect: (data: { title: string; content: string }) => void; // 🆕 Ahora pasa título y contenido
   onClose: () => void;
   currentPrompt?: string;
 }) {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [prompts, setPrompts] = useState<Prompt[]>([]);
-  const [selectedFolderId, setSelectedFolderId] = useState<string>("base");
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
 
@@ -51,11 +50,6 @@ export default function PromptSelector({
       
       if (savedFolders) {
         setFolders(JSON.parse(savedFolders));
-      } else {
-        const defaultFolders: Folder[] = [
-          { id: "base", name: "Prompts Base", icon: "📝", isBase: true }
-        ];
-        setFolders(defaultFolders);
       }
       
       if (savedPrompts) {
@@ -68,7 +62,7 @@ export default function PromptSelector({
 
   // Filtrar prompts
   const filteredPrompts = prompts.filter(p => {
-    const matchesFolder = p.folderId === selectedFolderId;
+    const matchesFolder = selectedFolderId === null || p.folderId === selectedFolderId;
     const matchesFavorite = !showOnlyFavorites || p.isFavorite;
     const matchesSearch = !searchQuery || 
       p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -99,17 +93,18 @@ export default function PromptSelector({
       updatedAt: new Date().toISOString(),
     };
 
-    const updatedPrompts = [...prompts, newPrompt];
-    setPrompts(updatedPrompts);
-    
-    try {
-      localStorage.setItem("kreative-prompts", JSON.stringify(updatedPrompts));
-      alert("✅ Prompt guardado correctamente");
-    } catch (e) {
-      console.error("Error guardando prompt:", e);
-      alert("❌ Error guardando el prompt");
-    }
+    const updated = [...prompts, newPrompt];
+    setPrompts(updated);
+    localStorage.setItem("kreative-prompts", JSON.stringify(updated));
+    alert("✅ Prompt guardado en la galería");
   };
+
+  const folderCounts = folders.map(f => ({
+    ...f,
+    count: prompts.filter(p => p.folderId === f.id).length
+  }));
+
+  const uncategorizedCount = prompts.filter(p => p.folderId === null).length;
 
   return (
     <div
@@ -117,12 +112,13 @@ export default function PromptSelector({
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0,0,0,0.8)",
+        background: "rgba(0,0,0,0.7)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        zIndex: 10000,
+        zIndex: 9999,
         padding: 20,
+        backdropFilter: "blur(4px)",
       }}
     >
       <div
@@ -130,344 +126,291 @@ export default function PromptSelector({
         style={{
           background: "#fff",
           borderRadius: 16,
-          width: "min(1000px, 95vw)",
-          height: "min(700px, 90vh)",
-          display: "flex",
+          maxWidth: 900,
+          width: "100%",
+          maxHeight: "90vh",
           overflow: "hidden",
-          boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)",
-        }}
-      >
-        {/* Sidebar */}
-        <aside style={{
-          width: 240,
-          background: "#f9fafb",
-          borderRight: "1px solid #e5e7eb",
-          padding: 20,
           display: "flex",
           flexDirection: "column",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+        }}
+      >
+        {/* Header */}
+        <div style={{ 
+          padding: "20px 24px",
+          borderBottom: "1px solid #e5e7eb",
+          background: "#f9fafb"
         }}>
-          {/* Header */}
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-              <div style={{
-                width: 36,
-                height: 36,
-                background: "#ff6b6b",
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <h2 style={{ 
+              margin: 0, 
+              fontSize: 20, 
+              fontWeight: 700,
+              color: "#ff6b6b"
+            }}>
+              📋 Galería de Prompts
+            </h2>
+            <button
+              onClick={onClose}
+              style={{
+                width: 32,
+                height: 32,
                 borderRadius: 8,
+                border: "1px solid #e5e7eb",
+                background: "#fff",
+                color: "#6b7280",
+                fontSize: 20,
+                fontWeight: 700,
+                cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: 18,
-              }}>
-                ✨
-              </div>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 14 }}>Mis Prompts</div>
-                <div style={{ fontSize: 12, color: "#6b7280" }}>{prompts.length} guardados</div>
-              </div>
-            </div>
+              }}
+            >
+              ×
+            </button>
           </div>
 
-          {/* Favoritos */}
-          <button
-            onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
-            style={{
-              padding: "10px 12px",
-              borderRadius: 8,
-              border: "1px solid #e5e7eb",
-              background: showOnlyFavorites ? "#fff1f0" : "#fff",
-              color: showOnlyFavorites ? "#ff6b6b" : "#6b7280",
-              fontWeight: 600,
-              fontSize: 14,
-              cursor: "pointer",
-              marginBottom: 16,
-            }}
-          >
-            ⭐ Solo favoritos
-          </button>
+          {/* Barra de búsqueda y acciones */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            <button
+              onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
+              style={{
+                padding: "8px 12px",
+                background: showOnlyFavorites ? "#fff7ed" : "#fff",
+                border: "1px solid",
+                borderColor: showOnlyFavorites ? "#ff6b6b" : "#e5e7eb",
+                borderRadius: 8,
+                fontSize: 13,
+                fontWeight: 600,
+                color: showOnlyFavorites ? "#ff6b6b" : "#6b7280",
+                cursor: "pointer",
+              }}
+            >
+              ⭐ Favoritos
+            </button>
 
-          {/* Carpetas */}
-          <div style={{ flex: 1, overflow: "auto" }}>
-            <div style={{
-              fontSize: 12,
-              fontWeight: 600,
-              color: "#9ca3af",
-              marginBottom: 8,
-              textTransform: "uppercase",
-            }}>
-              Carpetas
-            </div>
-            
-            {folders.map(folder => (
+            <input
+              type="text"
+              placeholder="Buscar por título, contenido o tags..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                flex: 1,
+                padding: "8px 12px",
+                border: "1px solid #e5e7eb",
+                borderRadius: 8,
+                fontSize: 13,
+                outline: "none",
+              }}
+            />
+
+            <button
+              onClick={handleSaveCurrentPrompt}
+              style={{
+                padding: "8px 12px",
+                background: "#10b981",
+                border: "none",
+                borderRadius: 8,
+                fontSize: 13,
+                fontWeight: 600,
+                color: "#fff",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              💾 Guardar actual
+            </button>
+          </div>
+
+          {/* Filtros de carpetas */}
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <button
+              onClick={() => setSelectedFolderId(null)}
+              style={{
+                padding: "6px 12px",
+                background: selectedFolderId === null ? "#ff6b6b" : "#fff",
+                border: "1px solid",
+                borderColor: selectedFolderId === null ? "#ff6b6b" : "#e5e7eb",
+                borderRadius: 6,
+                fontSize: 12,
+                fontWeight: 600,
+                color: selectedFolderId === null ? "#fff" : "#6b7280",
+                cursor: "pointer",
+              }}
+            >
+              📋 Todos ({prompts.length})
+            </button>
+
+            <button
+              onClick={() => setSelectedFolderId(null)}
+              style={{
+                padding: "6px 12px",
+                background: "#fff",
+                border: "1px solid #e5e7eb",
+                borderRadius: 6,
+                fontSize: 12,
+                fontWeight: 600,
+                color: "#6b7280",
+                cursor: "pointer",
+              }}
+            >
+              📄 Sin carpeta ({uncategorizedCount})
+            </button>
+
+            {folderCounts.map(folder => (
               <button
                 key={folder.id}
                 onClick={() => setSelectedFolderId(folder.id)}
                 style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  borderRadius: 8,
-                  border: "none",
-                  background: selectedFolderId === folder.id ? "#fff1f0" : "transparent",
-                  color: selectedFolderId === folder.id ? "#ff6b6b" : "#6b7280",
-                  fontWeight: selectedFolderId === folder.id ? 600 : 400,
-                  fontSize: 14,
+                  padding: "6px 12px",
+                  background: selectedFolderId === folder.id ? "#ff6b6b" : "#fff",
+                  border: "1px solid",
+                  borderColor: selectedFolderId === folder.id ? "#ff6b6b" : "#e5e7eb",
+                  borderRadius: 6,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: selectedFolderId === folder.id ? "#fff" : "#6b7280",
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
-                  gap: 8,
-                  marginBottom: 4,
-                  textAlign: "left",
+                  gap: 4,
                 }}
               >
                 <span>{folder.icon}</span>
-                <span style={{ flex: 1 }}>{folder.name}</span>
-                <span style={{ fontSize: 12, color: "#9ca3af" }}>
-                  {prompts.filter(p => p.folderId === folder.id).length}
-                </span>
+                <span>{folder.name}</span>
+                <span>({folder.count})</span>
               </button>
             ))}
           </div>
+        </div>
 
-          {/* Link a página de prompts */}
-          <button
-            onClick={() => window.location.href = "/prompts"}
-            style={{
-              padding: "10px 12px",
-              borderRadius: 8,
-              border: "1px solid #e5e7eb",
-              background: "#fff",
-              color: "#6b7280",
-              fontWeight: 600,
-              fontSize: 14,
-              cursor: "pointer",
-              marginTop: 16,
-            }}
-          >
-            📝 Gestionar prompts
-          </button>
+        {/* Lista de prompts */}
+        <div style={{ 
+          flex: 1,
+          overflow: "auto",
+          padding: "16px 24px"
+        }}>
+          {filteredPrompts.length === 0 ? (
+            <div style={{
+              textAlign: "center",
+              padding: "40px 20px",
+              color: "#9ca3af"
+            }}>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>📝</div>
+              <p style={{ margin: 0, fontSize: 14 }}>
+                {prompts.length === 0 
+                  ? "No hay prompts guardados. Guarda el prompt actual para empezar."
+                  : "No se encontraron prompts con estos filtros."}
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: 12 }}>
+              {filteredPrompts.map(prompt => (
+                <div
+                  key={prompt.id}
+                  onClick={() => onSelect({ title: prompt.title, content: prompt.content })} // 🆕 Envía título y contenido
+                  style={{
+                    background: "#f9fafb",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: 12,
+                    padding: 14,
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "#fff0f0";
+                    e.currentTarget.style.borderColor = "#ff6b6b";
+                    e.currentTarget.style.transform = "translateX(4px)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "#f9fafb";
+                    e.currentTarget.style.borderColor = "#e5e7eb";
+                    e.currentTarget.style.transform = "translateX(0)";
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 8 }}>
+                    <h3 style={{
+                      margin: 0,
+                      fontSize: 14,
+                      fontWeight: 700,
+                      color: "#111827",
+                    }}>
+                      {prompt.title}
+                    </h3>
+                    {prompt.isFavorite && (
+                      <span style={{ fontSize: 16 }}>⭐</span>
+                    )}
+                  </div>
 
-          {/* Cerrar */}
+                  <p style={{
+                    margin: "0 0 8px 0",
+                    fontSize: 12,
+                    color: "#6b7280",
+                    lineHeight: 1.5,
+                    maxHeight: 60,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    display: "-webkit-box",
+                    WebkitLineClamp: 3,
+                    WebkitBoxOrient: "vertical",
+                  }}>
+                    {prompt.content}
+                  </p>
+
+                  {prompt.tags.length > 0 && (
+                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                      {prompt.tags.map(tag => (
+                        <span
+                          key={tag}
+                          style={{
+                            padding: "2px 8px",
+                            background: "#e0e7ff",
+                            borderRadius: 4,
+                            fontSize: 10,
+                            fontWeight: 600,
+                            color: "#4f46e5",
+                          }}
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{
+          padding: "16px 24px",
+          borderTop: "1px solid #e5e7eb",
+          background: "#f9fafb",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center"
+        }}>
+          <small style={{ color: "#9ca3af", fontSize: 12 }}>
+            Haz clic en un prompt para aplicarlo
+          </small>
           <button
             onClick={onClose}
             style={{
-              padding: "10px 12px",
-              borderRadius: 8,
-              border: "1px solid #e5e7eb",
+              padding: "8px 16px",
               background: "#fff",
-              color: "#6b7280",
+              border: "1px solid #e5e7eb",
+              borderRadius: 8,
+              fontSize: 13,
               fontWeight: 600,
-              fontSize: 14,
+              color: "#374151",
               cursor: "pointer",
-              marginTop: 8,
             }}
           >
-            Cerrar
+            Cancelar
           </button>
-        </aside>
-
-        {/* Main */}
-        <main style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-        }}>
-          {/* Header */}
-          <header style={{
-            padding: 20,
-            borderBottom: "1px solid #e5e7eb",
-          }}>
-            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-              <input
-                type="text"
-                placeholder="Buscar prompts..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{
-                  flex: 1,
-                  padding: "10px 14px",
-                  borderRadius: 8,
-                  border: "1px solid #e5e7eb",
-                  fontSize: 14,
-                  outline: "none",
-                }}
-              />
-              {currentPrompt && (
-                <button
-                  onClick={handleSaveCurrentPrompt}
-                  style={{
-                    padding: "10px 16px",
-                    borderRadius: 8,
-                    background: "#10b981",
-                    color: "#fff",
-                    border: "none",
-                    fontWeight: 600,
-                    fontSize: 14,
-                    cursor: "pointer",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  💾 Guardar prompt actual
-                </button>
-              )}
-            </div>
-          </header>
-
-          {/* Content */}
-          <div style={{
-            flex: 1,
-            overflow: "auto",
-            padding: 20,
-          }}>
-            {filteredPrompts.length === 0 ? (
-              // Empty state
-              <div style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                height: "100%",
-                textAlign: "center",
-                color: "#9ca3af",
-              }}>
-                <div style={{ fontSize: 48, marginBottom: 16 }}>📝</div>
-                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#374151" }}>
-                  {searchQuery ? "No se encontraron prompts" : "Aún no tienes prompts"}
-                </h3>
-                <p style={{ margin: "8px 0 0 0", fontSize: 14 }}>
-                  {searchQuery
-                    ? "Intenta con otra búsqueda"
-                    : "Ve a la página de Prompts para crear tu primer prompt"}
-                </p>
-                {!searchQuery && (
-                  <button
-                    onClick={() => window.location.href = "/prompts"}
-                    style={{
-                      marginTop: 20,
-                      padding: "10px 20px",
-                      borderRadius: 8,
-                      background: "#ff6b6b",
-                      color: "#fff",
-                      border: "none",
-                      fontWeight: 600,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Ir a Prompts
-                  </button>
-                )}
-              </div>
-            ) : (
-              // Grid
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-                gap: 16,
-              }}>
-                {filteredPrompts.map(prompt => (
-                  <div
-                    key={prompt.id}
-                    onClick={() => {
-                      onSelect(prompt.content);
-                      onClose();
-                    }}
-                    style={{
-                      background: "#fff",
-                      border: "1px solid #e5e7eb",
-                      borderRadius: 12,
-                      padding: 16,
-                      cursor: "pointer",
-                      transition: "all 0.2s",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(255, 107, 107, 0.15)";
-                      e.currentTarget.style.borderColor = "#ff6b6b";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.boxShadow = "none";
-                      e.currentTarget.style.borderColor = "#e5e7eb";
-                    }}
-                  >
-                    {/* Header */}
-                    <div style={{
-                      display: "flex",
-                      alignItems: "start",
-                      justifyContent: "space-between",
-                      marginBottom: 8,
-                    }}>
-                      <h4 style={{
-                        margin: 0,
-                        fontSize: 14,
-                        fontWeight: 700,
-                        color: "#111827",
-                        flex: 1,
-                      }}>
-                        {prompt.title}
-                      </h4>
-                      {prompt.isFavorite && (
-                        <span style={{ fontSize: 16 }}>⭐</span>
-                      )}
-                    </div>
-
-                    {/* Content */}
-                    <p style={{
-                      margin: 0,
-                      fontSize: 13,
-                      color: "#6b7280",
-                      lineHeight: "1.4",
-                      maxHeight: 48,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      display: "-webkit-box",
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: "vertical",
-                    }}>
-                      {prompt.content}
-                    </p>
-
-                    {/* Tags */}
-                    {prompt.tags.length > 0 && (
-                      <div style={{
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: 4,
-                        marginTop: 8,
-                      }}>
-                        {prompt.tags.slice(0, 3).map((tag, i) => (
-                          <span
-                            key={i}
-                            style={{
-                              padding: "2px 6px",
-                              background: "#fff1f0",
-                              color: "#ff6b6b",
-                              borderRadius: 4,
-                              fontSize: 11,
-                              fontWeight: 600,
-                            }}
-                          >
-                            #{tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Action hint */}
-                    <div style={{
-                      marginTop: 12,
-                      paddingTop: 12,
-                      borderTop: "1px solid #f3f4f6",
-                      fontSize: 12,
-                      color: "#ff6b6b",
-                      fontWeight: 600,
-                    }}>
-                      Clic para usar →
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </main>
+        </div>
       </div>
     </div>
   );
