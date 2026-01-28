@@ -395,7 +395,13 @@ export default function PromptsPage() {
 
   /* ====== RENDER ====== */
   return (
-    <div style={{ padding: "32px 18px", maxWidth: 1400, margin: "0 auto" }}>
+    <div style={{ 
+      minHeight: "100vh",
+      background: "#fff",
+      padding: "32px 18px", 
+      maxWidth: 1400, 
+      margin: "0 auto" 
+    }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 24 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -798,12 +804,12 @@ export default function PromptsPage() {
               padding: 24,
             }}
           >
-            <h2 style={{ margin: "0 0 16px 0", fontSize: 20, fontWeight: 700 }}>
+            <h2 style={{ margin: "0 0 16px 0", fontSize: 20, fontWeight: 700, color: "#111" }}>
               {editingPrompt ? "Editar Prompt" : "Nuevo Prompt"}
             </h2>
 
             <div style={{ marginBottom: 16 }}>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6, color: "#111" }}>
                 Título *
               </label>
               <input
@@ -819,12 +825,13 @@ export default function PromptsPage() {
                   borderRadius: 8,
                   fontSize: 14,
                   outline: "none",
+                  color: "#111",
                 }}
               />
             </div>
 
             <div style={{ marginBottom: 16 }}>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6, color: "#111" }}>
                 Contenido *
               </label>
               <textarea
@@ -841,6 +848,7 @@ export default function PromptsPage() {
                   fontSize: 14,
                   outline: "none",
                   resize: "vertical",
+                  color: "#111",
                 }}
               />
               <small style={{ color: "#6b7280" }}>
@@ -849,7 +857,7 @@ export default function PromptsPage() {
             </div>
 
             <div style={{ marginBottom: 16 }}>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6, color: "#111" }}>
                 Carpeta
               </label>
               <select
@@ -862,6 +870,7 @@ export default function PromptsPage() {
                   borderRadius: 8,
                   fontSize: 14,
                   outline: "none",
+                  color: "#111",
                 }}
               >
                 <option value="">Sin carpeta</option>
@@ -883,6 +892,7 @@ export default function PromptsPage() {
                   borderRadius: 8,
                   fontWeight: 600,
                   cursor: "pointer",
+                  color: "#111",
                 }}
               >
                 Cancelar
@@ -931,12 +941,12 @@ export default function PromptsPage() {
               padding: 24,
             }}
           >
-            <h2 style={{ margin: "0 0 16px 0", fontSize: 20, fontWeight: 700 }}>
+            <h2 style={{ margin: "0 0 16px 0", fontSize: 20, fontWeight: 700, color: "#111" }}>
               {editingFolder ? "Editar Carpeta" : "Nueva Carpeta"}
             </h2>
 
             <div style={{ marginBottom: 16 }}>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6, color: "#111" }}>
                 Nombre *
               </label>
               <input
@@ -952,12 +962,13 @@ export default function PromptsPage() {
                   borderRadius: 8,
                   fontSize: 14,
                   outline: "none",
+                  color: "#111",
                 }}
               />
             </div>
 
             <div style={{ marginBottom: 16 }}>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6, color: "#111" }}>
                 Emoji
               </label>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -991,6 +1002,7 @@ export default function PromptsPage() {
                   borderRadius: 8,
                   fontWeight: 600,
                   cursor: "pointer",
+                  color: "#111",
                 }}
               >
                 Cancelar
