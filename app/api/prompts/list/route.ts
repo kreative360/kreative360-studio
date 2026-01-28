@@ -12,6 +12,8 @@ export async function GET(req: Request) {
     const onlyFavorites = searchParams.get("favorites") === "true";
     const search = searchParams.get("search");
 
+    console.log("LIST PROMPTS:", { folderId, onlyFavorites, search }); // Debug
+
     let query = supabaseAdmin
       .from("user_prompts")
       .select("*")
@@ -20,8 +22,6 @@ export async function GET(req: Request) {
     // Filtrar por carpeta
     if (folderId) {
       query = query.eq("folder_id", folderId);
-    } else if (folderId === null) {
-      query = query.is("folder_id", null);
     }
 
     // Filtrar solo favoritos
@@ -38,7 +38,12 @@ export async function GET(req: Request) {
 
     const { data, error } = await query;
 
-    if (error) throw error;
+    if (error) {
+      console.error("Error listando prompts:", error);
+      throw error;
+    }
+
+    console.log("Prompts encontrados:", data?.length || 0); // Debug
 
     return NextResponse.json({
       success: true,
