@@ -162,11 +162,15 @@ export default function PromptsPage() {
 
       const data = await res.json();
       if (data.success) {
-        loadPrompts();
+        await loadPrompts();
         closeNewPromptModal();
+        alert("✅ Prompt creado correctamente");
+      } else {
+        alert("❌ Error creando prompt");
       }
     } catch (error) {
       console.error("Error creando prompt:", error);
+      alert("❌ Error creando prompt");
     }
   };
 
@@ -183,11 +187,17 @@ export default function PromptsPage() {
         }),
       });
 
-      if (res.ok) {
-        loadPrompts();
+      const data = await res.json();
+      
+      if (data.success) {
+        await loadPrompts();
+        alert("✅ Prompt eliminado");
+      } else {
+        alert("❌ Error eliminando prompt");
       }
     } catch (error) {
       console.error("Error eliminando prompt:", error);
+      alert("❌ Error eliminando prompt");
     }
   };
 
@@ -226,11 +236,15 @@ export default function PromptsPage() {
 
       const data = await res.json();
       if (data.success) {
-        loadFolders();
+        await loadFolders();
         closeNewFolderModal();
+        alert("✅ Carpeta creada correctamente");
+      } else {
+        alert("❌ Error creando carpeta");
       }
     } catch (error) {
       console.error("Error creando carpeta:", error);
+      alert("❌ Error creando carpeta");
     }
   };
 
@@ -247,15 +261,21 @@ export default function PromptsPage() {
         }),
       });
 
-      if (res.ok) {
-        loadFolders();
-        loadPrompts();
+      const data = await res.json();
+      
+      if (data.success) {
+        await loadFolders();
+        await loadPrompts();
         if (selectedFolderId === id) {
           setSelectedFolderId(null);
         }
+        alert("✅ Carpeta eliminada");
+      } else {
+        alert("❌ Error eliminando carpeta");
       }
     } catch (error) {
       console.error("Error eliminando carpeta:", error);
+      alert("❌ Error eliminando carpeta");
     }
   };
 
@@ -318,12 +338,18 @@ export default function PromptsPage() {
         }),
       });
 
-      if (res.ok) {
-        loadPrompts();
+      const data = await res.json();
+      
+      if (data.success) {
+        await loadPrompts();
         closeNewPromptModal();
+        alert("✅ Prompt actualizado");
+      } else {
+        alert("❌ Error actualizando prompt");
       }
     } catch (error) {
       console.error("Error actualizando prompt:", error);
+      alert("❌ Error actualizando prompt");
     }
   };
 
