@@ -162,9 +162,11 @@ export default function PromptsPage() {
 
       const data = await res.json();
       if (data.success) {
-        await loadPrompts();
+        // Añadir el nuevo prompt al estado
+        if (data.prompt) {
+          setPrompts(prev => [data.prompt, ...prev]);
+        }
         closeNewPromptModal();
-        alert("✅ Prompt creado correctamente");
       } else {
         alert("❌ Error creando prompt");
       }
@@ -176,6 +178,9 @@ export default function PromptsPage() {
 
   const deletePrompt = async (id: string) => {
     if (!confirm("¿Eliminar este prompt?")) return;
+
+    // Actualización optimista: eliminar del estado inmediatamente
+    setPrompts(prev => prev.filter(p => p.id !== id));
 
     try {
       const res = await fetch("/api/prompts/crud", {
@@ -189,21 +194,27 @@ export default function PromptsPage() {
 
       const data = await res.json();
       
-      if (data.success) {
+      if (!data.success) {
+        // Si falla, recargar para restaurar el estado correcto
         await loadPrompts();
-        alert("✅ Prompt eliminado");
-      } else {
         alert("❌ Error eliminando prompt");
       }
     } catch (error) {
       console.error("Error eliminando prompt:", error);
+      // Si falla, recargar para restaurar el estado correcto
+      await loadPrompts();
       alert("❌ Error eliminando prompt");
     }
   };
 
   const toggleFavorite = async (id: string) => {
+    // Actualización optimista
+    setPrompts(prev => prev.map(p => 
+      p.id === id ? { ...p, is_favorite: !p.is_favorite } : p
+    ));
+
     try {
-      await fetch("/api/prompts/crud", {
+      const res = await fetch("/api/prompts/crud", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -211,9 +222,17 @@ export default function PromptsPage() {
           promptId: id,
         }),
       });
-      loadPrompts();
+
+      const data = await res.json();
+      
+      if (!data.success) {
+        // Si falla, recargar para restaurar
+        await loadPrompts();
+      }
     } catch (error) {
       console.error("Error actualizando favorito:", error);
+      // Si falla, recargar para restaurar
+      await loadPrompts();
     }
   };
 
@@ -236,9 +255,11 @@ export default function PromptsPage() {
 
       const data = await res.json();
       if (data.success) {
-        await loadFolders();
+        // Añadir la nueva carpeta al estado
+        if (data.folder) {
+          setFolders(prev => [...prev, data.folder]);
+        }
         closeNewFolderModal();
-        alert("✅ Carpeta creada correctamente");
       } else {
         alert("❌ Error creando carpeta");
       }
@@ -250,6 +271,15 @@ export default function PromptsPage() {
 
   const deleteFolder = async (id: string) => {
     if (!confirm("¿Eliminar esta carpeta? Los prompts dentro no se eliminarán.")) return;
+
+    // Actualización optimista
+    setFolders(prev => prev.filter(f => f.id !== id));
+    setPrompts(prev => prev.map(p => 
+      p.folder_id === id ? { ...p, folder_id: null } : p
+    ));
+    if (selectedFolderId === id) {
+      setSelectedFolderId(null);
+    }
 
     try {
       const res = await fetch("/api/prompts/folders", {
@@ -263,18 +293,17 @@ export default function PromptsPage() {
 
       const data = await res.json();
       
-      if (data.success) {
+      if (!data.success) {
+        // Si falla, recargar para restaurar
         await loadFolders();
         await loadPrompts();
-        if (selectedFolderId === id) {
-          setSelectedFolderId(null);
-        }
-        alert("✅ Carpeta eliminada");
-      } else {
         alert("❌ Error eliminando carpeta");
       }
     } catch (error) {
       console.error("Error eliminando carpeta:", error);
+      // Si falla, recargar para restaurar
+      await loadFolders();
+      await loadPrompts();
       alert("❌ Error eliminando carpeta");
     }
   };
@@ -322,6 +351,20 @@ export default function PromptsPage() {
   const saveEditedPrompt = async () => {
     if (!editingPrompt) return;
     
+    // Actualización optimista
+    const updatedData = {
+      title: newPromptTitle.trim(),
+      content: newPromptContent.trim(),
+      tags: newPromptTags.split(",").map(t => t.trim()).filter(Boolean),
+      folder_id: newPromptFolder,
+    };
+    
+    setPrompts(prev => prev.map(p => 
+      p.id === editingPrompt.id ? { ...p, ...updatedData } : p
+    ));
+    
+    closeNewPromptModal();
+    
     try {
       const res = await fetch("/api/prompts/crud", {
         method: "POST",
@@ -340,15 +383,15 @@ export default function PromptsPage() {
 
       const data = await res.json();
       
-      if (data.success) {
+      if (!data.success) {
+        // Si falla, recargar para restaurar
         await loadPrompts();
-        closeNewPromptModal();
-        alert("✅ Prompt actualizado");
-      } else {
         alert("❌ Error actualizando prompt");
       }
     } catch (error) {
       console.error("Error actualizando prompt:", error);
+      // Si falla, recargar para restaurar
+      await loadPrompts();
       alert("❌ Error actualizando prompt");
     }
   };
