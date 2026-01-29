@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
+import PromptSelector from "@/app/components/PromptSelector";
 
 const LS_SELECTED_PROJECT = "selectedProject:v1";
 
@@ -42,8 +43,13 @@ export default function PictuLabPage() {
   // 🆕 Guardar el nombre original del primer archivo subido
   const [firstFileName, setFirstFileName] = useState<string>("");
 
+  // 🎯 ESTADO PARA GALERÍA DE PROMPTS
+  const [showPromptGallery, setShowPromptGallery] = useState(false);
+  const [currentPrompt, setCurrentPrompt] = useState("");
+
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const sizes = [
     { label: "1:1 (cuadrado)", size: "1024×1024", ratio: 1, w: 1024, h: 1024 },
@@ -171,15 +177,22 @@ export default function PictuLabPage() {
     setUploadedImages(arr);
   };
 
+  // 🎯 MANEJAR SELECCIÓN DE PROMPT DESDE LA GALERÍA
+  const handlePromptSelect = (data: { title: string; content: string }) => {
+    if (textareaRef.current) {
+      textareaRef.current.value = data.content;
+      setCurrentPrompt(data.content);
+    }
+    setShowPromptGallery(false);
+  };
+
   // ========= GENERACIÓN ==========
   async function generateImage() {
     if (isGenerating) return;
     setIsGenerating(true);
     setGenerated(null);
 
-    const prompt = (
-      document.querySelector("textarea") as HTMLTextAreaElement
-    )?.value;
+    const prompt = textareaRef.current?.value || "";
 
     const payload = {
       prompt,
@@ -274,7 +287,7 @@ export default function PictuLabPage() {
     const originalImageUrl = uploadedImages.length > 0 ? uploadedImages[0] : null;
 
     // Capturar prompt usado
-    const promptUsed = (document.querySelector("textarea") as HTMLTextAreaElement)?.value || null;
+    const promptUsed = textareaRef.current?.value || null;
 
     setIsSending(true);
 
@@ -335,8 +348,35 @@ export default function PictuLabPage() {
 
           {/* PROMPT */}
           <div className="sidebar-box">
-            <h2>Prompt</h2>
-            <textarea placeholder="Describe brevemente la imagen que quieres generar..."></textarea>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <h2 style={{ margin: 0 }}>Prompt</h2>
+              <button
+                onClick={() => {
+                  setCurrentPrompt(textareaRef.current?.value || "");
+                  setShowPromptGallery(true);
+                }}
+                style={{
+                  background: "#ff6b6b",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "6px 12px",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+                title="Abrir galería de prompts"
+              >
+                📋 Galería
+              </button>
+            </div>
+            <textarea 
+              ref={textareaRef}
+              placeholder="Describe brevemente la imagen que quieres generar..."
+            ></textarea>
           </div>
 
           {/* REFERENCIAS */}
@@ -683,6 +723,15 @@ export default function PictuLabPage() {
             }}
           />
         </div>
+      )}
+
+      {/* MODAL GALERÍA DE PROMPTS */}
+      {showPromptGallery && (
+        <PromptSelector
+          onSelect={handlePromptSelect}
+          onClose={() => setShowPromptGallery(false)}
+          currentPrompt={currentPrompt}
+        />
       )}
     </>
   );
