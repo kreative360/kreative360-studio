@@ -3,6 +3,39 @@
 import Link from "next/link";
 
 export default function HomePage() {
+  const panels = [
+    {
+      href: "/masivo",
+      title: "Panel Masivo",
+      icon: "🎨",
+      description: "Genera imágenes de producto en lote usando prompts y una imagen de referencia.",
+    },
+    {
+      href: "/pictulab",
+      title: "Panel Pictulab",
+      icon: "🖼️",
+      description: "Editor avanzado con tamaños, formatos y calidad hasta 300 ppp.",
+    },
+    {
+      href: "/projects",
+      title: "Galeria Proyectos",
+      icon: "📁",
+      description: "Gestiona y organiza todos tus proyectos de imágenes generadas.",
+    },
+    {
+      href: "/prompts",
+      title: "Galeria Prompts",
+      icon: "📝",
+      description: "Biblioteca de prompts reutilizables para generar imágenes consistentes.",
+    },
+    {
+      href: "/cleanup",
+      title: "Optimizador Espacio",
+      icon: "🚀",
+      description: "Limpia archivos huérfanos y optimiza el espacio de almacenamiento.",
+    },
+  ];
+
   return (
     <main
       style={{
@@ -45,67 +78,62 @@ export default function HomePage() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
           gap: 20,
           width: "100%",
-          maxWidth: 700,
+          maxWidth: 900,
         }}
       >
-        {/* Panel MASIVO */}
-        <Link
-          href="/masivo"
-          style={{
-            background: "#1A1D21",
-            border: "1px solid #2a2d31",
-            borderRadius: 16,
-            padding: "24px 20px",
-            textDecoration: "none",
-            color: "#fff",
-            fontWeight: 700,
-            transition: "all 0.2s ease",
-          }}
-        >
-          <h2
+        {panels.map((panel) => (
+          <Link
+            key={panel.href}
+            href={panel.href}
             style={{
-              color: "#FF6D6D",
-              marginBottom: 10,
-              fontSize: "1.2rem",
+              background: "#1A1D21",
+              border: "1px solid #2a2d31",
+              borderRadius: 16,
+              padding: "24px 20px",
+              textDecoration: "none",
+              color: "#fff",
+              fontWeight: 700,
+              transition: "all 0.2s ease",
+              cursor: "pointer",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "#252831";
+              e.currentTarget.style.borderColor = "#FF6D6D";
+              e.currentTarget.style.transform = "translateY(-4px)";
+              e.currentTarget.style.boxShadow = "0 8px 24px rgba(255, 109, 109, 0.2)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "#1A1D21";
+              e.currentTarget.style.borderColor = "#2a2d31";
+              e.currentTarget.style.transform = "translateY(0)";
+              e.currentTarget.style.boxShadow = "none";
             }}
           >
-            Generador de Imágenes Masivo
-          </h2>
-          <p style={{ color: "#cbd5e1", fontSize: "0.95rem" }}>
-            Genera imágenes de producto en lote usando prompts y una imagen de referencia.
-          </p>
-        </Link>
-
-        {/* Panel Pic2Lab */}
-        <Link
-          href="/pictulab"
-          style={{
-            background: "#1A1D21",
-            border: "1px solid #2a2d31",
-            borderRadius: 16,
-            padding: "24px 20px",
-            textDecoration: "none",
-            color: "#fff",
-            fontWeight: 700,
-            transition: "all 0.2s ease",
-          }}
-        >
-          <h2
-            style={{
-              color: "#FF6D6D",
-              marginBottom: 10,
-              fontSize: "1.2rem",
-            }}
-          >
-            Panel Pic2Lab
-          </h2>
-          <p style={{ color: "#cbd5e1", fontSize: "0.95rem" }}>
-            Editor avanzado con tamaños, formatos y calidad hasta 300 ppp.
-          </p>
-        </Link>
+            <div
+              style={{
+                fontSize: "2.5rem",
+                marginBottom: 12,
+              }}
+            >
+              {panel.icon}
+            </div>
+            <h2
+              style={{
+                color: "#FF6D6D",
+                marginBottom: 10,
+                fontSize: "1.2rem",
+              }}
+            >
+              {panel.title}
+            </h2>
+            <p style={{ color: "#cbd5e1", fontSize: "0.9rem", lineHeight: 1.5 }}>
+              {panel.description}
+            </p>
+          </Link>
+        ))}
       </div>
 
       <p
