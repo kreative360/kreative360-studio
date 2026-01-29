@@ -47,6 +47,9 @@ export default function PictuLabPage() {
   const [showPromptGallery, setShowPromptGallery] = useState(false);
   const [currentPrompt, setCurrentPrompt] = useState("");
 
+  // 🎯 ESTADO PARA COLAPSAR SECCIÓN DE PROYECTO
+  const [isProjectSectionExpanded, setIsProjectSectionExpanded] = useState(false);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -497,165 +500,186 @@ export default function PictuLabPage() {
             </div>
           </div>
 
-          {/* 🆕 SELECTOR DE PROYECTO + CAMPOS ZIP */}
+          {/* 🆕 SELECTOR DE PROYECTO COLAPSABLE */}
           <div className="sidebar-box">
-            <h2>Enviar a proyecto</h2>
-            
-            {/* Selector de proyecto */}
-            <div style={{ position: "relative", marginBottom: 10 }}>
-              <select
-                value={selectedProjectId || ""}
-                onChange={(e) => setSelectedProjectId(e.target.value || null)}
-                disabled={isLoadingProjects}
-                style={{
-                  border: "1px solid #e5e7eb",
-                  borderRadius: 8,
-                  padding: "8px 30px 8px 12px",
-                  width: "100%",
-                  background: "#fff",
-                  color: selectedProjectId ? "#111" : "#9ca3af",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  appearance: "none",
-                  fontSize: 14,
-                }}
-                title={
-                  selectedProjectId 
-                    ? `Proyecto seleccionado: ${projects.find(p => p.id === selectedProjectId)?.name || selectedProjectId}`
-                    : "Selecciona un proyecto para enviar imágenes"
-                }
-              >
-                <option value="">{isLoadingProjects ? "Cargando..." : "Seleccionar proyecto"}</option>
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-              </select>
-              <div
-                style={{
-                  position: "absolute",
-                  right: 10,
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  pointerEvents: "none",
-                  color: "#6b7280",
-                }}
-              >
-                ▼
-              </div>
-            </div>
-
-            {/* Campo Referencia */}
-            <div style={{ position: "relative", marginBottom: 10 }}>
-              <input
-                key={`ref-${zipInputKey}`}
-                value={zipNameRef}
-                onChange={(e) => setZipNameRef(e.target.value)}
-                placeholder="Nombre ZIP (Referencia)"
-                style={{
-                  border: "1px solid #e5e7eb",
-                  borderRadius: 8,
-                  padding: "8px 36px 8px 12px",
-                  width: "100%",
-                  fontSize: 14,
-                }}
-              />
-              {zipNameRef.trim() !== "" && (
-                <button
-                  onClick={() => { setZipNameRef(""); setZipInputKey((k) => k + 1); }}
-                  title="Borrar nombre"
-                  aria-label="Borrar nombre"
-                  style={{
-                    position: "absolute",
-                    right: 8,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    width: 22,
-                    height: 22,
-                    borderRadius: 6,
-                    border: "1px solid #e5e7eb",
-                    background: "#fff",
-                    color: "#111",
-                    cursor: "pointer",
-                    lineHeight: "20px",
-                    fontWeight: 800,
-                  }}
-                >
-                  ×
-                </button>
-              )}
-            </div>
-
-            {/* Campo ASIN */}
-            <div style={{ position: "relative", marginBottom: 10 }}>
-              <input
-                key={`asin-${zipInputKey}`}
-                value={zipNameAsin}
-                onChange={(e) => setZipNameAsin(e.target.value)}
-                placeholder="Nombre ZIP (ASIN)"
-                style={{
-                  border: "1px solid #e5e7eb",
-                  borderRadius: 8,
-                  padding: "8px 36px 8px 12px",
-                  width: "100%",
-                  fontSize: 14,
-                }}
-              />
-              {zipNameAsin.trim() !== "" && (
-                <button
-                  onClick={() => { setZipNameAsin(""); setZipInputKey((k) => k + 1); }}
-                  title="Borrar nombre"
-                  aria-label="Borrar nombre"
-                  style={{
-                    position: "absolute",
-                    right: 8,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    width: 22,
-                    height: 22,
-                    borderRadius: 6,
-                    border: "1px solid #e5e7eb",
-                    background: "#fff",
-                    color: "#111",
-                    cursor: "pointer",
-                    lineHeight: "20px",
-                    fontWeight: 800,
-                  }}
-                >
-                  ×
-                </button>
-              )}
-            </div>
-
-            {/* Botón Enviar */}
-            <button
-              onClick={handleSendToProject}
-              disabled={isSending || !selectedProjectId || !generated}
-              style={{
+            <div 
+              onClick={() => setIsProjectSectionExpanded(!isProjectSectionExpanded)}
+              style={{ 
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "12px 16px",
+                background: "#f9fafb",
                 borderRadius: 8,
-                padding: "10px 12px",
-                width: "100%",
-                background: (selectedProjectId && generated) ? "#10b981" : "#e5e7eb",
-                color: (selectedProjectId && generated) ? "#ffffff" : "#9ca3af",
-                fontWeight: 700,
-                cursor: (isSending || !selectedProjectId || !generated) ? "not-allowed" : "pointer",
-                border: "1px solid rgba(0,0,0,.1)",
-                opacity: isSending ? 0.7 : 1,
-                fontSize: 14,
+                border: "1px solid #e5e7eb",
               }}
-              title={
-                !selectedProjectId 
-                  ? "Selecciona un proyecto primero" 
-                  : !generated
-                    ? "Genera una imagen primero"
-                    : isSending 
-                      ? "Enviando imagen..." 
-                      : `Enviar imagen al proyecto`
-              }
             >
-              {isSending ? "Enviando..." : "Enviar a proyecto"}
-            </button>
+              <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Enviar a proyecto</h2>
+              <span style={{ fontSize: 12, color: "#6b7280" }}>
+                {isProjectSectionExpanded ? "▲" : "▼"}
+              </span>
+            </div>
+
+            {isProjectSectionExpanded && (
+              <div style={{ marginTop: 12 }}>
+                {/* Selector de proyecto */}
+                <div style={{ position: "relative", marginBottom: 10 }}>
+                  <select
+                    value={selectedProjectId || ""}
+                    onChange={(e) => setSelectedProjectId(e.target.value || null)}
+                    disabled={isLoadingProjects}
+                    style={{
+                      border: "1px solid #e5e7eb",
+                      borderRadius: 8,
+                      padding: "8px 30px 8px 12px",
+                      width: "100%",
+                      background: "#fff",
+                      color: selectedProjectId ? "#111" : "#9ca3af",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      appearance: "none",
+                      fontSize: 14,
+                    }}
+                    title={
+                      selectedProjectId 
+                        ? `Proyecto seleccionado: ${projects.find(p => p.id === selectedProjectId)?.name || selectedProjectId}`
+                        : "Selecciona un proyecto para enviar imágenes"
+                    }
+                  >
+                    <option value="">{isLoadingProjects ? "Cargando..." : "Seleccionar proyecto"}</option>
+                    {projects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div
+                    style={{
+                      position: "absolute",
+                      right: 10,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      pointerEvents: "none",
+                      color: "#6b7280",
+                    }}
+                  >
+                    ▼
+                  </div>
+                </div>
+
+                {/* Campo Referencia */}
+                <div style={{ position: "relative", marginBottom: 10 }}>
+                  <input
+                    key={`ref-${zipInputKey}`}
+                    value={zipNameRef}
+                    onChange={(e) => setZipNameRef(e.target.value)}
+                    placeholder="Nombre ZIP (Referencia)"
+                    style={{
+                      border: "1px solid #e5e7eb",
+                      borderRadius: 8,
+                      padding: "8px 36px 8px 12px",
+                      width: "100%",
+                      fontSize: 14,
+                    }}
+                  />
+                  {zipNameRef.trim() !== "" && (
+                    <button
+                      onClick={() => { setZipNameRef(""); setZipInputKey((k) => k + 1); }}
+                      title="Borrar nombre"
+                      aria-label="Borrar nombre"
+                      style={{
+                        position: "absolute",
+                        right: 8,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        width: 22,
+                        height: 22,
+                        borderRadius: 6,
+                        border: "1px solid #e5e7eb",
+                        background: "#fff",
+                        color: "#111",
+                        cursor: "pointer",
+                        lineHeight: "20px",
+                        fontWeight: 800,
+                      }}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+
+                {/* Campo ASIN */}
+                <div style={{ position: "relative", marginBottom: 10 }}>
+                  <input
+                    key={`asin-${zipInputKey}`}
+                    value={zipNameAsin}
+                    onChange={(e) => setZipNameAsin(e.target.value)}
+                    placeholder="Nombre ZIP (ASIN)"
+                    style={{
+                      border: "1px solid #e5e7eb",
+                      borderRadius: 8,
+                      padding: "8px 36px 8px 12px",
+                      width: "100%",
+                      fontSize: 14,
+                    }}
+                  />
+                  {zipNameAsin.trim() !== "" && (
+                    <button
+                      onClick={() => { setZipNameAsin(""); setZipInputKey((k) => k + 1); }}
+                      title="Borrar nombre"
+                      aria-label="Borrar nombre"
+                      style={{
+                        position: "absolute",
+                        right: 8,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        width: 22,
+                        height: 22,
+                        borderRadius: 6,
+                        border: "1px solid #e5e7eb",
+                        background: "#fff",
+                        color: "#111",
+                        cursor: "pointer",
+                        lineHeight: "20px",
+                        fontWeight: 800,
+                      }}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+
+                {/* Botón Enviar */}
+                <button
+                  onClick={handleSendToProject}
+                  disabled={isSending || !selectedProjectId || !generated}
+                  style={{
+                    borderRadius: 8,
+                    padding: "10px 12px",
+                    width: "100%",
+                    background: (selectedProjectId && generated) ? "#10b981" : "#e5e7eb",
+                    color: (selectedProjectId && generated) ? "#ffffff" : "#9ca3af",
+                    fontWeight: 700,
+                    cursor: (isSending || !selectedProjectId || !generated) ? "not-allowed" : "pointer",
+                    border: "1px solid rgba(0,0,0,.1)",
+                    opacity: isSending ? 0.7 : 1,
+                    fontSize: 14,
+                  }}
+                  title={
+                    !selectedProjectId 
+                      ? "Selecciona un proyecto primero" 
+                      : !generated
+                        ? "Genera una imagen primero"
+                        : isSending 
+                          ? "Enviando imagen..." 
+                          : `Enviar imagen al proyecto`
+                  }
+                >
+                  {isSending ? "Enviando..." : "Enviar a proyecto"}
+                </button>
+              </div>
+            )}
           </div>
 
           {/* GENERAR */}
@@ -681,10 +705,12 @@ export default function PictuLabPage() {
               height: previewDims.h * zoom,
               position: "relative",
               overflow: "hidden",
-              background: "#fff2",
+              background: "#FFD6D6",
+              border: "3px solid #FF9999",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              boxShadow: "0 4px 12px rgba(255, 107, 107, 0.15)",
             }}
           >
             {generated ? (
