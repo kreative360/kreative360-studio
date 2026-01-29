@@ -10,11 +10,11 @@ type Prompt = {
   id: string;
   title: string;
   content: string;
-  folderId: string | null;
-  isFavorite: boolean;
+  folder_id: string | null;
+  is_favorite: boolean;
   tags: string[];
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
+  updated_at: string;
 };
 
 type Folder = {
@@ -32,7 +32,7 @@ export default function PromptSelector({
   onClose,
   currentPrompt = "",
 }: {
-  onSelect: (data: { title: string; content: string }) => void; // 🆕 Ahora pasa título y contenido
+  onSelect: (data: { title: string; content: string }) => void;
   onClose: () => void;
   currentPrompt?: string;
 }) {
@@ -41,29 +41,50 @@ export default function PromptSelector({
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // Cargar datos
+  // Cargar datos desde Supabase
   useEffect(() => {
-    try {
-      const savedFolders = localStorage.getItem("kreative-prompt-folders");
-      const savedPrompts = localStorage.getItem("kreative-prompts");
-      
-      if (savedFolders) {
-        setFolders(JSON.parse(savedFolders));
-      }
-      
-      if (savedPrompts) {
-        setPrompts(JSON.parse(savedPrompts));
-      }
-    } catch (e) {
-      console.error("Error cargando prompts:", e);
-    }
+    loadData();
   }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      await Promise.all([loadFolders(), loadPrompts()]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadFolders = async () => {
+    try {
+      const res = await fetch("/api/prompts/folders");
+      const data = await res.json();
+      if (data.success) {
+        setFolders(data.folders || []);
+      }
+    } catch (error) {
+      console.error("Error cargando carpetas:", error);
+    }
+  };
+
+  const loadPrompts = async () => {
+    try {
+      const res = await fetch("/api/prompts/list");
+      const data = await res.json();
+      if (data.success) {
+        setPrompts(data.prompts || []);
+      }
+    } catch (error) {
+      console.error("Error cargando prompts:", error);
+    }
+  };
 
   // Filtrar prompts
   const filteredPrompts = prompts.filter(p => {
-    const matchesFolder = selectedFolderId === null || p.folderId === selectedFolderId;
-    const matchesFavorite = !showOnlyFavorites || p.isFavorite;
+    const matchesFolder = selectedFolderId === null || p.folder_id === selectedFolderId;
+    const matchesFavorite = !showOnlyFavorites || p.is_favorite;
     const matchesSearch = !searchQuery || 
       p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -73,7 +94,7 @@ export default function PromptSelector({
   });
 
   // Guardar prompt actual
-  const handleSaveCurrentPrompt = () => {
+  const handleSaveCurrentPrompt = async () => {
     if (!currentPrompt.trim()) {
       alert("El prompt actual está vacío");
       return;
@@ -82,29 +103,40 @@ export default function PromptSelector({
     const title = window.prompt("Nombre del prompt:", "Mi Prompt");
     if (!title) return;
 
-    const newPrompt: Prompt = {
-      id: `prompt-${Date.now()}`,
-      title: title.trim(),
-      content: currentPrompt,
-      folderId: selectedFolderId,
-      isFavorite: false,
-      tags: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    try {
+      const res = await fetch("/api/prompts/crud", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create",
+          data: {
+            title: title.trim(),
+            content: currentPrompt,
+            folderId: selectedFolderId,
+            tags: [],
+          },
+        }),
+      });
 
-    const updated = [...prompts, newPrompt];
-    setPrompts(updated);
-    localStorage.setItem("kreative-prompts", JSON.stringify(updated));
-    alert("✅ Prompt guardado en la galería");
+      const data = await res.json();
+      if (data.success) {
+        alert("✅ Prompt guardado en la galería");
+        await loadPrompts(); // Recargar la lista
+      } else {
+        alert("❌ Error guardando prompt");
+      }
+    } catch (error) {
+      console.error("Error guardando prompt:", error);
+      alert("❌ Error guardando prompt");
+    }
   };
 
   const folderCounts = folders.map(f => ({
     ...f,
-    count: prompts.filter(p => p.folderId === f.id).length
+    count: prompts.filter(p => p.folder_id === f.id).length
   }));
 
-  const uncategorizedCount = prompts.filter(p => p.folderId === null).length;
+  const uncategorizedCount = prompts.filter(p => p.folder_id === null).length;
 
   return (
     <div
@@ -291,7 +323,16 @@ export default function PromptSelector({
           overflow: "auto",
           padding: "16px 24px"
         }}>
-          {filteredPrompts.length === 0 ? (
+          {loading ? (
+            <div style={{
+              textAlign: "center",
+              padding: "40px 20px",
+              color: "#9ca3af"
+            }}>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>⏳</div>
+              <p style={{ margin: 0, fontSize: 14 }}>Cargando prompts...</p>
+            </div>
+          ) : filteredPrompts.length === 0 ? (
             <div style={{
               textAlign: "center",
               padding: "40px 20px",
@@ -309,7 +350,7 @@ export default function PromptSelector({
               {filteredPrompts.map(prompt => (
                 <div
                   key={prompt.id}
-                  onClick={() => onSelect({ title: prompt.title, content: prompt.content })} // 🆕 Envía título y contenido
+                  onClick={() => onSelect({ title: prompt.title, content: prompt.content })}
                   style={{
                     background: "#f9fafb",
                     border: "1px solid #e5e7eb",
@@ -338,7 +379,7 @@ export default function PromptSelector({
                     }}>
                       {prompt.title}
                     </h3>
-                    {prompt.isFavorite && (
+                    {prompt.is_favorite && (
                       <span style={{ fontSize: 16 }}>⭐</span>
                     )}
                   </div>
