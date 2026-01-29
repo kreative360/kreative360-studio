@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
+// Forzar renderizado dinámico
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 /**
  * GET /api/prompts/folders
  * Lista todas las carpetas
@@ -8,7 +12,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 export async function GET(req: Request) {
   try {
     const { data, error } = await supabaseAdmin
-      .from("prompt_folders_v2")  // ← CAMBIADO AQUÍ
+      .from("prompt_folders_v2")
       .select("*")
       .order("created_at", { ascending: true });
 
@@ -72,7 +76,7 @@ async function createFolder(data: any) {
   }
 
   const { data: folder, error } = await supabaseAdmin
-    .from("prompt_folders_v2")  // ← CAMBIADO AQUÍ
+    .from("prompt_folders_v2")
     .insert({
       name: name.trim(),
       icon: icon || "📁",
@@ -105,7 +109,7 @@ async function updateFolder(folderId: string, data: any) {
   if (data.icon !== undefined) updates.icon = data.icon;
 
   const { data: folder, error } = await supabaseAdmin
-    .from("prompt_folders_v2")  // ← CAMBIADO AQUÍ
+    .from("prompt_folders_v2")
     .update(updates)
     .eq("id", folderId)
     .select()
@@ -135,7 +139,7 @@ async function deleteFolder(folderId: string) {
   // gracias al ON DELETE SET NULL de la foreign key
 
   const { error } = await supabaseAdmin
-    .from("prompt_folders_v2")  // ← CAMBIADO AQUÍ
+    .from("prompt_folders_v2")
     .delete()
     .eq("id", folderId);
 

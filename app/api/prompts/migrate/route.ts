@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
+// Forzar renderizado dinámico
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 /**
  * POST /api/prompts/migrate
  * Migra prompts y folders desde localStorage a Supabase
@@ -24,7 +28,7 @@ export async function POST(req: Request) {
     for (const folder of folders) {
       try {
         const { data, error } = await supabaseAdmin
-          .from("prompt_folders_v2")  // ← CAMBIADO AQUÍ
+          .from("prompt_folders_v2")
           .insert({
             name: folder.name,
             icon: folder.icon || "📁",
@@ -53,7 +57,7 @@ export async function POST(req: Request) {
         }
 
         const { data, error } = await supabaseAdmin
-          .from("user_prompts_v2")  // ← CAMBIADO AQUÍ
+          .from("user_prompts_v2")
           .insert({
             title: prompt.title,
             content: prompt.content,

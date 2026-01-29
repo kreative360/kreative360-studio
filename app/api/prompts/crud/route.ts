@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
+// Forzar renderizado dinámico
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 /**
  * POST /api/prompts/crud
  * Operaciones CRUD para prompts
@@ -53,7 +57,7 @@ async function createPrompt(data: any) {
     console.log("Creando prompt:", { title, content, folderId, tags }); // Debug
 
     const { data: prompt, error } = await supabaseAdmin
-      .from("user_prompts_v2")  // ← CAMBIADO AQUÍ
+      .from("user_prompts_v2")
       .insert({
         title: title.trim(),
         content: content.trim(),
@@ -108,7 +112,7 @@ async function updatePrompt(promptId: string, data: any) {
     console.log("Actualizando prompt:", promptId, updates); // Debug
 
     const { data: prompt, error } = await supabaseAdmin
-      .from("user_prompts_v2")  // ← CAMBIADO AQUÍ
+      .from("user_prompts_v2")
       .update(updates)
       .eq("id", promptId)
       .select()
@@ -149,7 +153,7 @@ async function deletePrompt(promptId: string) {
     console.log("Eliminando prompt:", promptId); // Debug
 
     const { error } = await supabaseAdmin
-      .from("user_prompts_v2")  // ← CAMBIADO AQUÍ
+      .from("user_prompts_v2")
       .delete()
       .eq("id", promptId);
 
@@ -189,7 +193,7 @@ async function toggleFavorite(promptId: string) {
 
     // Obtener estado actual
     const { data: current, error: fetchError } = await supabaseAdmin
-      .from("user_prompts_v2")  // ← CAMBIADO AQUÍ
+      .from("user_prompts_v2")
       .select("is_favorite")
       .eq("id", promptId)
       .single();
@@ -201,7 +205,7 @@ async function toggleFavorite(promptId: string) {
 
     // Invertir estado
     const { data: prompt, error } = await supabaseAdmin
-      .from("user_prompts_v2")  // ← CAMBIADO AQUÍ
+      .from("user_prompts_v2")
       .update({ is_favorite: !current.is_favorite })
       .eq("id", promptId)
       .select()

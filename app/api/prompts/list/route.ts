@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
+// Forzar renderizado dinámico
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 /**
  * GET /api/prompts/list
  * Lista todos los prompts del usuario actual
@@ -15,7 +19,7 @@ export async function GET(req: Request) {
     console.log("LIST PROMPTS:", { folderId, onlyFavorites, search }); // Debug
 
     let query = supabaseAdmin
-      .from("user_prompts_v2")  // ← CAMBIADO AQUÍ
+      .from("user_prompts_v2")
       .select("*")
       .order("created_at", { ascending: false });
 
