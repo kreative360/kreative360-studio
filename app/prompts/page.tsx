@@ -31,6 +31,7 @@ export default function PromptsPage() {
   // Estados
   const [folders, setFolders] = useState<Folder[]>([]);
   const [prompts, setPrompts] = useState<Prompt[]>([]);
+  const [allPrompts, setAllPrompts] = useState<Prompt[]>([]); // 🆕 Guardar todos los prompts sin filtrar
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
@@ -117,14 +118,24 @@ export default function PromptsPage() {
   const loadPrompts = async () => {
     try {
       const params = new URLSearchParams();
-      if (selectedFolderId) params.set("folderId", selectedFolderId);
+      if (selectedFolderId && selectedFolderId !== "UNCATEGORIZED") {
+        params.set("folderId", selectedFolderId);
+      }
       if (showOnlyFavorites) params.set("favorites", "true");
       if (searchQuery) params.set("search", searchQuery);
 
       const res = await fetch(`/api/prompts/list?${params.toString()}`);
       const data = await res.json();
       if (data.success) {
-        setPrompts(data.prompts || []);
+        const loadedPrompts = data.prompts || [];
+        setAllPrompts(loadedPrompts); // Guardar todos los prompts
+        
+        // Filtrar localmente si es "Sin carpeta"
+        if (selectedFolderId === "UNCATEGORIZED") {
+          setPrompts(loadedPrompts.filter((p: Prompt) => p.folder_id === null));
+        } else {
+          setPrompts(loadedPrompts);
+        }
       }
     } catch (error) {
       console.error("Error cargando prompts:", error);
@@ -162,10 +173,8 @@ export default function PromptsPage() {
 
       const data = await res.json();
       if (data.success) {
-        // Añadir el nuevo prompt al estado
-        if (data.prompt) {
-          setPrompts(prev => [data.prompt, ...prev]);
-        }
+        // Recargar para actualizar contadores
+        await loadPrompts();
         closeNewPromptModal();
       } else {
         alert("❌ Error creando prompt");
@@ -181,6 +190,7 @@ export default function PromptsPage() {
 
     // Actualización optimista: eliminar del estado inmediatamente
     setPrompts(prev => prev.filter(p => p.id !== id));
+    setAllPrompts(prev => prev.filter(p => p.id !== id));
 
     try {
       const res = await fetch("/api/prompts/crud", {
@@ -210,6 +220,9 @@ export default function PromptsPage() {
   const toggleFavorite = async (id: string) => {
     // Actualización optimista
     setPrompts(prev => prev.map(p => 
+      p.id === id ? { ...p, is_favorite: !p.is_favorite } : p
+    ));
+    setAllPrompts(prev => prev.map(p => 
       p.id === id ? { ...p, is_favorite: !p.is_favorite } : p
     ));
 
@@ -270,18 +283,40 @@ export default function PromptsPage() {
   };
 
   const deleteFolder = async (id: string) => {
-    if (!confirm("¿Eliminar esta carpeta? Los prompts dentro no se eliminarán.")) return;
+    // 🆕 Contar prompts en la carpeta
+    const promptsInFolder = allPrompts.filter(p => p.folder_id === id).length;
+    
+    const confirmMessage = promptsInFolder > 0
+      ? `¿Eliminar esta carpeta y los ${promptsInFolder} prompts que contiene?\n\nEsta acción no se puede deshacer.`
+      : "¿Eliminar esta carpeta?";
+    
+    if (!confirm(confirmMessage)) return;
 
     // Actualización optimista
     setFolders(prev => prev.filter(f => f.id !== id));
-    setPrompts(prev => prev.map(p => 
-      p.folder_id === id ? { ...p, folder_id: null } : p
-    ));
+    setPrompts(prev => prev.filter(p => p.folder_id !== id));
+    setAllPrompts(prev => prev.filter(p => p.folder_id !== id));
+    
     if (selectedFolderId === id) {
       setSelectedFolderId(null);
     }
 
     try {
+      // 🆕 Primero eliminar todos los prompts de la carpeta
+      const promptsToDelete = allPrompts.filter(p => p.folder_id === id);
+      
+      for (const prompt of promptsToDelete) {
+        await fetch("/api/prompts/crud", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "delete",
+            promptId: prompt.id,
+          }),
+        });
+      }
+
+      // Luego eliminar la carpeta
       const res = await fetch("/api/prompts/folders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -314,7 +349,7 @@ export default function PromptsPage() {
     setNewPromptTitle("");
     setNewPromptContent("");
     setNewPromptTags("");
-    setNewPromptFolder(selectedFolderId);
+    setNewPromptFolder(selectedFolderId && selectedFolderId !== "UNCATEGORIZED" ? selectedFolderId : null);
     setShowNewPromptModal(true);
   };
 
@@ -362,6 +397,9 @@ export default function PromptsPage() {
     setPrompts(prev => prev.map(p => 
       p.id === editingPrompt.id ? { ...p, ...updatedData } : p
     ));
+    setAllPrompts(prev => prev.map(p => 
+      p.id === editingPrompt.id ? { ...p, ...updatedData } : p
+    ));
     
     closeNewPromptModal();
     
@@ -400,10 +438,10 @@ export default function PromptsPage() {
 
   const folderCounts = folders.map(f => ({
     ...f,
-    count: prompts.filter(p => p.folder_id === f.id).length
+    count: allPrompts.filter(p => p.folder_id === f.id).length
   }));
 
-  const uncategorizedCount = prompts.filter(p => p.folder_id === null).length;
+  const uncategorizedCount = allPrompts.filter(p => p.folder_id === null).length;
 
   return (
     <div style={{ 
@@ -557,23 +595,24 @@ export default function PromptsPage() {
               cursor: "pointer",
             }}
           >
-            📋 Todos ({prompts.length})
+            📋 Todos
           </button>
 
           <button
-            onClick={() => setSelectedFolderId(null)}
+            onClick={() => setSelectedFolderId("UNCATEGORIZED")}
             style={{
               padding: "8px 14px",
-              background: selectedFolderId === null ? "#f3f4f6" : "#fff",
-              border: "1px solid #e5e7eb",
+              background: selectedFolderId === "UNCATEGORIZED" ? "#ff6b6b" : "#fff",
+              border: "1px solid",
+              borderColor: selectedFolderId === "UNCATEGORIZED" ? "#ff6b6b" : "#e5e7eb",
               borderRadius: 8,
               fontWeight: 600,
               fontSize: 13,
-              color: "#6b7280",
+              color: selectedFolderId === "UNCATEGORIZED" ? "#fff" : "#6b7280",
               cursor: "pointer",
             }}
           >
-            📄 Sin carpeta ({uncategorizedCount})
+            📄 Sin carpeta
           </button>
 
           {folderCounts.map(folder => (
@@ -597,7 +636,6 @@ export default function PromptsPage() {
               >
                 <span>{folder.icon}</span>
                 <span>{folder.name}</span>
-                <span>({folder.count})</span>
               </button>
               <button
                 onClick={() => deleteFolder(folder.id)}
@@ -618,7 +656,7 @@ export default function PromptsPage() {
                   alignItems: "center",
                   justifyContent: "center",
                 }}
-                title="Eliminar carpeta"
+                title="Eliminar carpeta y sus prompts"
               >
                 ×
               </button>
@@ -645,7 +683,7 @@ export default function PromptsPage() {
               color: "#111827",
               marginBottom: 8
             }}>
-              {prompts.length === 0 
+              {allPrompts.length === 0 
                 ? "Aún no tienes prompts" 
                 : "No se encontraron prompts"}
             </h2>
@@ -654,11 +692,11 @@ export default function PromptsPage() {
               color: "#6b7280",
               marginBottom: 24
             }}>
-              {prompts.length === 0
+              {allPrompts.length === 0
                 ? "Comienza creando tu primer prompt para generar imágenes increíbles con IA"
                 : "Intenta con otra búsqueda o filtro"}
             </p>
-            {prompts.length === 0 && (
+            {allPrompts.length === 0 && (
               <button
                 onClick={openNewPromptModal}
                 style={{
@@ -1184,7 +1222,7 @@ export default function PromptsPage() {
         color: "#9ca3af"
       }}>
         <div>
-          Prompts guardados: {prompts.length} | Favoritos: {prompts.filter(p => p.is_favorite).length}
+          Prompts guardados: {allPrompts.length} | Favoritos: {allPrompts.filter(p => p.is_favorite).length}
         </div>
         <div>
           © 2025 Kreative 360º
