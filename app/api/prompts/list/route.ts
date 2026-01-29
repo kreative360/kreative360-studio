@@ -15,7 +15,7 @@ export async function GET(req: Request) {
     console.log("LIST PROMPTS:", { folderId, onlyFavorites, search }); // Debug
 
     let query = supabaseAdmin
-      .from("user_prompts")
+      .from("user_prompts_v2")  // ← CAMBIADO AQUÍ
       .select("*")
       .order("created_at", { ascending: false });
 

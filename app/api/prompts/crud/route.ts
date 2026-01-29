@@ -53,7 +53,7 @@ async function createPrompt(data: any) {
     console.log("Creando prompt:", { title, content, folderId, tags }); // Debug
 
     const { data: prompt, error } = await supabaseAdmin
-      .from("user_prompts")
+      .from("user_prompts_v2")  // ← CAMBIADO AQUÍ
       .insert({
         title: title.trim(),
         content: content.trim(),
@@ -108,7 +108,7 @@ async function updatePrompt(promptId: string, data: any) {
     console.log("Actualizando prompt:", promptId, updates); // Debug
 
     const { data: prompt, error } = await supabaseAdmin
-      .from("user_prompts")
+      .from("user_prompts_v2")  // ← CAMBIADO AQUÍ
       .update(updates)
       .eq("id", promptId)
       .select()
@@ -149,7 +149,7 @@ async function deletePrompt(promptId: string) {
     console.log("Eliminando prompt:", promptId); // Debug
 
     const { error } = await supabaseAdmin
-      .from("user_prompts")
+      .from("user_prompts_v2")  // ← CAMBIADO AQUÍ
       .delete()
       .eq("id", promptId);
 
@@ -189,7 +189,7 @@ async function toggleFavorite(promptId: string) {
 
     // Obtener estado actual
     const { data: current, error: fetchError } = await supabaseAdmin
-      .from("user_prompts")
+      .from("user_prompts_v2")  // ← CAMBIADO AQUÍ
       .select("is_favorite")
       .eq("id", promptId)
       .single();
@@ -201,7 +201,7 @@ async function toggleFavorite(promptId: string) {
 
     // Invertir estado
     const { data: prompt, error } = await supabaseAdmin
-      .from("user_prompts")
+      .from("user_prompts_v2")  // ← CAMBIADO AQUÍ
       .update({ is_favorite: !current.is_favorite })
       .eq("id", promptId)
       .select()
