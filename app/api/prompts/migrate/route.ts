@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     for (const folder of folders) {
       try {
         const { data, error } = await supabaseAdmin
-          .from("prompt_folders")
+          .from("prompt_folders_v2")  // ← CAMBIADO AQUÍ
           .insert({
             name: folder.name,
             icon: folder.icon || "📁",
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
         }
 
         const { data, error } = await supabaseAdmin
-          .from("user_prompts")
+          .from("user_prompts_v2")  // ← CAMBIADO AQUÍ
           .insert({
             title: prompt.title,
             content: prompt.content,
