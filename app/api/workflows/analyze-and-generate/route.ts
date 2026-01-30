@@ -6,31 +6,9 @@ export const maxDuration = 60;
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
-/**
- * POST /api/workflows/analyze-and-generate
- * 
- * Analiza producto y genera N prompts (donde N es flexible)
- * 
- * Body:
- * {
- *   productName: "Lámpara de pie Mileto",
- *   imageUrl: "https://...",
- *   mode: "global" | "specific",
- *   imagesCount: 7,  // Puede ser cualquier número
- *   
- *   // MODO GLOBAL
- *   globalParams: "ambiente hiperrealista, estética minimalista",
- *   
- *   // MODO ESPECÍFICO
- *   specificPrompts: [
- *     "fondo blanco, vista frontal",
- *     "lifestyle scene, en uso",
- *     "salón minimalista",
- *     ...  // Tantos como imagesCount
- *   ]
- * }
- */
 export async function POST(request: Request) {
+  const startTime = Date.now();
+
   try {
     const { 
       productName, 
@@ -41,8 +19,14 @@ export async function POST(request: Request) {
       specificPrompts 
     } = await request.json();
 
+    console.log(`\n🧠 [ANALYZE] Starting analysis...`);
+    console.log(`📦 [ANALYZE] Product: ${productName || "(sin nombre)"}`);
+    console.log(`🖼️ [ANALYZE] Image: ${imageUrl}`);
+    console.log(`🎯 [ANALYZE] Mode: ${mode}, Images: ${imagesCount}`);
+
     // Validaciones
     if (!imageUrl) {
+      console.error("❌ [ANALYZE] Missing imageUrl");
       return NextResponse.json(
         { success: false, error: "imageUrl is required" },
         { status: 400 }
@@ -50,6 +34,7 @@ export async function POST(request: Request) {
     }
 
     if (!imagesCount || imagesCount < 1) {
+      console.error("❌ [ANALYZE] Invalid imagesCount:", imagesCount);
       return NextResponse.json(
         { success: false, error: "imagesCount must be >= 1" },
         { status: 400 }
@@ -57,6 +42,10 @@ export async function POST(request: Request) {
     }
 
     if (mode === "specific" && (!specificPrompts || specificPrompts.length !== imagesCount)) {
+      console.error("❌ [ANALYZE] Specific prompts mismatch:", { 
+        expected: imagesCount, 
+        got: specificPrompts?.length 
+      });
       return NextResponse.json(
         { success: false, error: `specificPrompts must have exactly ${imagesCount} elements` },
         { status: 400 }
@@ -64,15 +53,25 @@ export async function POST(request: Request) {
     }
 
     // 1. OBTENER LA IMAGEN
+    console.log("📥 [ANALYZE] Fetching image...");
     const imageRes = await fetch(imageUrl);
+    
+    if (!imageRes.ok) {
+      console.error(`❌ [ANALYZE] Image fetch failed: ${imageRes.status} ${imageRes.statusText}`);
+      throw new Error(`Failed to fetch image: ${imageRes.status} ${imageRes.statusText}`);
+    }
+
     const imageBuffer = await imageRes.arrayBuffer();
     const base64Image = Buffer.from(imageBuffer).toString("base64");
+    console.log(`✅ [ANALYZE] Image fetched (${(imageBuffer.byteLength / 1024).toFixed(2)} KB)`);
 
     // 2. CONSTRUIR PROMPT SEGÚN EL MODO
     let masterPrompt = "";
 
     if (mode === "global") {
-      // MODO GLOBAL: Gemini crea N variaciones del parámetro global
+      console.log("📝 [ANALYZE] Using GLOBAL mode");
+      console.log(`📝 [ANALYZE] Global params: ${globalParams}`);
+
       masterPrompt = `You are an expert product photographer and prompt engineer.
 
 TASK: Analyze this product and generate ${imagesCount} specialized photography prompts.
@@ -101,14 +100,16 @@ RESPOND IN THIS EXACT JSON FORMAT:
   "prompts": [
     "Prompt 1: detailed prompt here...",
     "Prompt 2: detailed prompt here...",
-    ${Array(imagesCount - 2).fill('    "Prompt N: detailed prompt here..."').join(',\n')}
+    ${Array(Math.max(0, imagesCount - 2)).fill('    "Prompt N: detailed prompt here..."').join(',\n')}
   ]
 }
 
 CRITICAL: Generate EXACTLY ${imagesCount} prompts, each one UNIQUE.`;
 
     } else {
-      // MODO ESPECÍFICO: Gemini adapta cada especificación al producto
+      console.log("📝 [ANALYZE] Using SPECIFIC mode");
+      console.log(`📝 [ANALYZE] Specific prompts:`, specificPrompts);
+
       const specificList = specificPrompts
         .map((spec: string, i: number) => `${i + 1}. ${spec}`)
         .join('\n');
@@ -146,7 +147,7 @@ RESPOND IN THIS EXACT JSON FORMAT:
   "prompts": [
     "Adapted prompt 1 based on user spec 1...",
     "Adapted prompt 2 based on user spec 2...",
-    ${Array(imagesCount - 2).fill('    "Adapted prompt N based on user spec N..."').join(',\n')}
+    ${Array(Math.max(0, imagesCount - 2)).fill('    "Adapted prompt N based on user spec N..."').join(',\n')}
   ]
 }
 
@@ -157,6 +158,7 @@ CRITICAL:
     }
 
     // 3. LLAMAR A GEMINI
+    console.log("🤖 [ANALYZE] Calling Gemini API...");
     const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
     
     const result = await model.generateContent([
@@ -170,7 +172,8 @@ CRITICAL:
     ]);
 
     const responseText = result.response.text().trim();
-    
+    console.log("📤 [ANALYZE] Gemini response received");
+
     // 4. PARSEAR RESPUESTA
     let jsonText = responseText;
     if (jsonText.includes("```json")) {
@@ -179,16 +182,26 @@ CRITICAL:
       jsonText = jsonText.split("```")[1].split("```")[0].trim();
     }
 
+    console.log("🔍 [ANALYZE] Parsing JSON response...");
     const analysis = JSON.parse(jsonText);
 
     // 5. VALIDAR QUE TENGA LA CANTIDAD CORRECTA
     if (!analysis.prompts || analysis.prompts.length !== imagesCount) {
-      console.error(`Expected ${imagesCount} prompts but got ${analysis.prompts?.length || 0}`);
+      console.error(`❌ [ANALYZE] Prompt count mismatch:`, {
+        expected: imagesCount,
+        got: analysis.prompts?.length || 0
+      });
       return NextResponse.json(
         { success: false, error: `Generated ${analysis.prompts?.length || 0} prompts but expected ${imagesCount}` },
         { status: 500 }
       );
     }
+
+    const duration = Date.now() - startTime;
+    console.log(`✅ [ANALYZE] SUCCESS - ${duration}ms`);
+    console.log(`📊 [ANALYZE] Product type: ${analysis.product_type}`);
+    console.log(`📊 [ANALYZE] Confidence: ${analysis.confidence}`);
+    console.log(`📊 [ANALYZE] Prompts generated: ${analysis.prompts.length}\n`);
 
     return NextResponse.json({
       success: true,
@@ -200,7 +213,11 @@ CRITICAL:
       images_count: imagesCount,
     });
   } catch (error: any) {
-    console.error("Error in analyze-and-generate:", error);
+    const duration = Date.now() - startTime;
+    console.error(`❌ [ANALYZE] FAILED - ${duration}ms`);
+    console.error(`❌ [ANALYZE] Error:`, error.message);
+    console.error(`❌ [ANALYZE] Stack:`, error.stack);
+    
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }
