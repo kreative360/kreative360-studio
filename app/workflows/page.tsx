@@ -61,28 +61,99 @@ export default function WorkflowsPage() {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
-        const text = e.target?.result as string;
+        let text = e.target?.result as string;
+        
+        // 1. Quitar BOM si existe (UTF-8 BOM)
+        if (text.charCodeAt(0) === 0xFEFF) {
+          text = text.substring(1);
+        }
+        
+        console.log("📄 CSV Parser - Kasas Decoración Format");
+        
+        // 2. Parsear líneas
         const lines = text.split("\n").filter((line) => line.trim());
         
-        // Primera línea = headers
-        const headers = lines[0].split(",").map((h) => h.trim());
+        if (lines.length < 2) {
+          reject(new Error("CSV debe tener al menos 2 líneas (header + datos)"));
+          return;
+        }
         
-        // Resto = datos
-        const items = lines.slice(1).map((line) => {
-          const values = line.split(",").map((v) => v.trim());
-          const item: any = {};
+        // 3. IGNORAR primera línea (headers) - trabajamos por posición fija
+        const dataLines = lines.slice(1);
+        
+        console.log(`📊 Total líneas de datos: ${dataLines.length}`);
+        
+        // 4. Parsear cada línea según POSICIONES FIJAS
+        const items = dataLines.map((line, idx) => {
+          // Split por punto y coma
+          const cols = line.split(";").map((v) => v.trim());
           
-          headers.forEach((header, index) => {
-            item[header] = values[index] || "";
+          // MAPEO FIJO DE COLUMNAS (orden correcto)
+          const reference = cols[0] || "";           // Columna 0: REFERENCIA (OBLIGATORIO)
+          const asin = cols[1] || "";                // Columna 1: ASIN (opcional)
+          const productName = cols[2] || "";         // Columna 2: Nombre (opcional)
+          const url1 = cols[3] || "";                // Columna 3: URL 1 (OBLIGATORIO)
+          const url2 = cols[4] || "";                // Columna 4: URL 2 (opcional)
+          const url3 = cols[5] || "";                // Columna 5: URL 3 (opcional)
+          const url4 = cols[6] || "";                // Columna 6: URL 4 (opcional)
+          const url5 = cols[7] || "";                // Columna 7: URL 5 (opcional)
+          
+          // 5. Construir array de URLs (solo las que existen y son válidas)
+          const imageUrls = [url1, url2, url3, url4, url5]
+            .filter((url) => url && url.startsWith("http"));
+          
+          // 6. Validaciones OBLIGATORIAS
+          if (!reference) {
+            console.warn(`⚠️ Línea ${idx + 2}: Sin referencia (OBLIGATORIO), ignorando`);
+            return null;
+          }
+          
+          if (imageUrls.length === 0) {
+            console.warn(`⚠️ Línea ${idx + 2} (${reference}): Sin URL 1 válida (OBLIGATORIO), ignorando`);
+            return null;
+          }
+          
+          // 7. Nombre del producto: usar el campo Nombre, si no hay usar ASIN, si no usar REFERENCIA
+          const finalProductName = productName || asin || reference;
+          
+          const item = {
+            reference: reference,
+            productName: finalProductName,
+            asin: asin || null,
+            imageUrls: imageUrls,
+          };
+          
+          console.log(`✅ Item ${idx + 1}:`, {
+            ref: item.reference,
+            name: item.productName,
+            asin: item.asin || "(vacío)",
+            urls: item.imageUrls.length,
           });
           
           return item;
-        });
+        }).filter(Boolean); // Quitar nulls
+        
+        console.log(`\n🎯 RESULTADO FINAL: ${items.length} productos válidos`);
+        
+        if (items.length > 0) {
+          console.log("📦 Primer producto:", items[0]);
+          console.log("📦 URLs del primer producto:", items[0].imageUrls);
+        }
+        
+        if (items.length === 0) {
+          reject(new Error("No se encontraron productos válidos. Verifica que cada línea tenga REFERENCIA y URL 1"));
+          return;
+        }
         
         resolve(items);
       };
-      reader.onerror = reject;
-      reader.readAsText(file);
+      
+      reader.onerror = (error) => {
+        console.error("❌ Error leyendo archivo:", error);
+        reject(new Error("Error leyendo el archivo CSV"));
+      };
+      
+      reader.readAsText(file, "UTF-8");
     });
   };
 
@@ -104,25 +175,15 @@ export default function WorkflowsPage() {
 
     try {
       // 1. Parsear CSV
-      const csvData = await parseCSV(csvFile);
+      const items = await parseCSV(csvFile);
       
-      // 2. Transformar a formato requerido
-      const items = csvData.map((row) => ({
-        reference: row.reference || row.Reference || row.REFERENCE,
-        asin: row.asin || row.ASIN,
-        productName: row.name || row.productName || row.Name,
-        imageUrls: [
-          row.url1 || row.URL1,
-          row.url2 || row.URL2,
-          row.url3 || row.URL3,
-        ].filter(Boolean),
-      }));
-
       if (items.length === 0) {
         throw new Error("El CSV no contiene datos válidos");
       }
 
-      // 3. Crear workflow
+      console.log(`📤 Enviando workflow con ${items.length} items`);
+
+      // 2. Crear workflow
       const res = await fetch("/api/workflows/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -151,8 +212,10 @@ export default function WorkflowsPage() {
       setWorkflowName("");
       setProjectId("");
       setCsvFile(null);
+      setGlobalParams("ambiente de uso hiperrealista, estética minimalista, respeta diseño 100%");
+      setSpecificPrompts([]);
     } catch (error: any) {
-      console.error("Error creating workflow:", error);
+      console.error("❌ Error creating workflow:", error);
       alert(`Error: ${error.message}`);
     } finally {
       setCreating(false);
@@ -402,6 +465,9 @@ export default function WorkflowsPage() {
                   fontSize: 14,
                 }}
               />
+              <p style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
+                💡 Encuentra el ID en Supabase → projects table
+              </p>
             </div>
 
             {/* Número de imágenes */}
@@ -522,7 +588,7 @@ export default function WorkflowsPage() {
             {/* CSV File */}
             <div style={{ marginBottom: 24 }}>
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-                Archivo CSV *
+                Archivo CSV * (Formato Kasas Decoración)
               </label>
               <input
                 type="file"
@@ -531,7 +597,7 @@ export default function WorkflowsPage() {
                 style={{ fontSize: 14 }}
               />
               <p style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
-                Formato: reference, name, asin, url1, url2, url3
+                📋 Formato: REFERENCIA;;ASIN;URL 1;URL 2;URL 3;URL 4;URL 5;
               </p>
             </div>
 

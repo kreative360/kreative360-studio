@@ -8,30 +8,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-/**
- * POST /api/workflows/create
- * 
- * Crea un nuevo workflow a partir de un CSV
- * 
- * Body:
- * {
- *   name: "Catálogo Casas Decoración",
- *   projectId: "uuid-del-proyecto",
- *   mode: "global" | "specific",
- *   imagesPerReference: 5,
- *   globalParams?: "ambiente hiperrealista...",
- *   specificPrompts?: ["spec 1", "spec 2", ...],
- *   items: [
- *     {
- *       reference: "GB-10976",
- *       asin: "B0XXXXXXXXX",
- *       productName: "Mueble TV",
- *       imageUrls: ["url1", "url2"]
- *     },
- *     ...
- *   ]
- * }
- */
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -44,6 +20,9 @@ export async function POST(request: Request) {
       specificPrompts,
       items,
     } = body;
+
+    console.log("📥 Creating workflow:", { name, projectId, mode, imagesPerReference });
+    console.log("📦 Items received:", items);
 
     // 1. VALIDACIONES
     if (!name || !projectId || !imagesPerReference || !items || items.length === 0) {
@@ -60,6 +39,19 @@ export async function POST(request: Request) {
       );
     }
 
+    // VALIDAR QUE CADA ITEM TENGA AL MENOS 1 URL
+    const invalidItems = items.filter((item: any) => !item.imageUrls || item.imageUrls.length === 0);
+    if (invalidItems.length > 0) {
+      console.error("❌ Items without URLs:", invalidItems);
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: `${invalidItems.length} items do not have any image URLs. Check your CSV format.` 
+        },
+        { status: 400 }
+      );
+    }
+
     // 2. CREAR WORKFLOW
     const { data: workflow, error: workflowError } = await supabase
       .from("workflows")
@@ -69,7 +61,7 @@ export async function POST(request: Request) {
         prompt_mode: mode,
         images_per_reference: imagesPerReference,
         global_params: globalParams || null,
-        specific_prompts: specificPrompts || null,
+        specific_prompts: specificPrompts ? JSON.stringify(specificPrompts) : null,
         status: "pending",
         total_items: items.length,
         processed_items: 0,
@@ -79,12 +71,14 @@ export async function POST(request: Request) {
       .single();
 
     if (workflowError || !workflow) {
-      console.error("Error creating workflow:", workflowError);
+      console.error("❌ Error creating workflow:", workflowError);
       return NextResponse.json(
-        { success: false, error: "Failed to create workflow" },
+        { success: false, error: `Failed to create workflow: ${workflowError?.message}` },
         { status: 500 }
       );
     }
+
+    console.log("✅ Workflow created:", workflow.id);
 
     // 3. CREAR WORKFLOW ITEMS
     const workflowItems = items.map((item: any) => ({
@@ -92,23 +86,27 @@ export async function POST(request: Request) {
       reference: item.reference,
       asin: item.asin || null,
       product_name: item.productName || null,
-      image_urls: item.imageUrls,
+      image_urls: JSON.stringify(item.imageUrls), // Asegurar que es string JSON
       status: "pending",
     }));
+
+    console.log("📝 Creating workflow items:", workflowItems.length);
 
     const { error: itemsError } = await supabase
       .from("workflow_items")
       .insert(workflowItems);
 
     if (itemsError) {
-      console.error("Error creating workflow items:", itemsError);
+      console.error("❌ Error creating workflow items:", itemsError);
       // Rollback: eliminar workflow
       await supabase.from("workflows").delete().eq("id", workflow.id);
       return NextResponse.json(
-        { success: false, error: "Failed to create workflow items" },
+        { success: false, error: `Failed to create workflow items: ${itemsError.message}` },
         { status: 500 }
       );
     }
+
+    console.log("✅ Workflow items created");
 
     return NextResponse.json({
       success: true,
@@ -120,7 +118,7 @@ export async function POST(request: Request) {
       },
     });
   } catch (error: any) {
-    console.error("Error in create workflow:", error);
+    console.error("❌ Error in create workflow:", error);
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }
