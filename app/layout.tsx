@@ -193,7 +193,38 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <span style={{ fontSize: 18 }}>📝</span>
               </Link>
 
-              {/* 5. Optimizador Espacio - 🚀 */}
+              {/* 5. Workflows Automáticos - 🤖 */}
+              <Link
+                href="/workflows"
+                onClick={() => setOpen(false)}
+                style={{
+                  padding: "14px 16px",
+                  background: "#fff0f0",
+                  borderRadius: 12,
+                  border: "1px solid #ffd6d6",
+                  marginBottom: 12,
+                  fontWeight: 600,
+                  color: "#1f2937",
+                  textDecoration: "none",
+                  transition: "all 0.2s ease",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "#ffe4e4";
+                  e.currentTarget.style.borderColor = "#ffb8b8";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "#fff0f0";
+                  e.currentTarget.style.borderColor = "#ffd6d6";
+                }}
+              >
+                <span>Workflows Automáticos</span>
+                <span style={{ fontSize: 18 }}>🤖</span>
+              </Link>
+
+              {/* 6. Optimizador Espacio - 🚀 */}
               <Link
                 href="/cleanup"
                 onClick={() => setOpen(false)}
