@@ -19,6 +19,8 @@ export default function WorkflowsPage() {
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingWorkflow, setEditingWorkflow] = useState<Workflow | null>(null);
 
   // Estado del formulario
   const [workflowName, setWorkflowName] = useState("");
@@ -247,6 +249,56 @@ export default function WorkflowsPage() {
     }
   };
 
+  const deleteWorkflow = async (workflowId: string, workflowName: string) => {
+    if (!confirm(`¿Eliminar el workflow "${workflowName}"? Esta acción no se puede deshacer.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/workflows/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workflowId }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        alert(`✅ Workflow "${workflowName}" eliminado`);
+        loadWorkflows();
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (error: any) {
+      alert(`Error: ${error.message}`);
+    }
+  };
+
+  const resetWorkflow = async (workflowId: string) => {
+    if (!confirm("¿Re-ejecutar este workflow? Esto marcará todos los items como pendientes y volverá a procesarlos.")) {
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/workflows/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workflowId }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        alert("✅ Workflow reseteado. Puedes ejecutarlo nuevamente.");
+        loadWorkflows();
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (error: any) {
+      alert(`Error: ${error.message}`);
+    }
+  };
+
   return (
     <div style={{ minHeight: "100vh", background: "#f9fafb", padding: 24 }}>
       {/* Header */}
@@ -339,7 +391,8 @@ export default function WorkflowsPage() {
                     )}
                   </div>
 
-                  <div style={{ display: "flex", gap: 8 }}>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                    {/* Botón Iniciar (solo si está pending) */}
                     {workflow.status === "pending" && (
                       <button
                         onClick={() => startWorkflow(workflow.id)}
@@ -358,6 +411,43 @@ export default function WorkflowsPage() {
                       </button>
                     )}
                     
+                    {/* Botón Re-ejecutar (si está completed o failed) */}
+                    {(workflow.status === "completed" || workflow.status === "failed") && (
+                      <button
+                        onClick={() => resetWorkflow(workflow.id)}
+                        style={{
+                          padding: "8px 16px",
+                          background: "#3b82f6",
+                          color: "#fff",
+                          border: "none",
+                          borderRadius: 8,
+                          fontWeight: 600,
+                          fontSize: 13,
+                          cursor: "pointer",
+                        }}
+                      >
+                        🔄 Re-ejecutar
+                      </button>
+                    )}
+                    
+                    {/* Botón Eliminar (siempre disponible) */}
+                    <button
+                      onClick={() => deleteWorkflow(workflow.id, workflow.name)}
+                      style={{
+                        padding: "8px 16px",
+                        background: "#ef4444",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: 8,
+                        fontWeight: 600,
+                        fontSize: 13,
+                        cursor: "pointer",
+                      }}
+                    >
+                      🗑️ Eliminar
+                    </button>
+                    
+                    {/* Estado */}
                     <span
                       style={{
                         padding: "8px 16px",
