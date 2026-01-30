@@ -2,12 +2,26 @@ import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 300; // 5 minutos
+export const maxDuration = 300;
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
+
+// 🔧 FUNCIÓN PARA OBTENER BASE URL
+function getBaseUrl() {
+  // En Vercel, usa VERCEL_URL
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  // Fallback a variable manual
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL;
+  }
+  // Local development
+  return "http://localhost:3000";
+}
 
 export async function POST(request: Request) {
   const startTime = Date.now();
@@ -24,6 +38,9 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    const baseUrl = getBaseUrl();
+    console.log(`🌐 [PROCESS-ITEM] Base URL: ${baseUrl}`);
 
     // 1. OBTENER WORKFLOW Y ITEM
     console.log("📦 [PROCESS-ITEM] Fetching workflow and item from DB...");
@@ -92,7 +109,7 @@ export async function POST(request: Request) {
     console.log("📤 [PROCESS-ITEM] Analyze payload:", JSON.stringify(analyzePayload, null, 2));
 
     const analyzeRes = await fetch(
-      `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/workflows/analyze-and-generate`,
+      `${baseUrl}/api/workflows/analyze-and-generate`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -133,7 +150,7 @@ export async function POST(request: Request) {
 
       try {
         const generateRes = await fetch(
-          `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/generate`,
+          `${baseUrl}/api/generate`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
