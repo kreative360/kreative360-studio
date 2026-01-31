@@ -10,7 +10,7 @@ export async function POST(req: Request) {
       imagesPerReference, 
       globalParams, 
       specificPrompts,
-      items // ✨ NUEVO: items del CSV
+      items // items del CSV
     } = await req.json();
 
     if (!workflowId) {
@@ -29,12 +29,11 @@ export async function POST(req: Request) {
 
     console.log("📝 [UPDATE] Actualizando workflow:", workflowId);
 
-    // Preparar datos de actualización
+    // Preparar datos de actualización (SIN updated_at)
     const updateData: any = {
       name,
       prompt_mode: mode,
       images_per_reference: imagesPerReference,
-      updated_at: new Date().toISOString(),
     };
 
     // Añadir prompts según el modo
@@ -46,7 +45,7 @@ export async function POST(req: Request) {
       updateData.specific_prompts = specificPrompts;
     }
 
-    // ✨ NUEVO: Si hay items, reemplazar CSV
+    // Si hay items, reemplazar CSV
     if (items && Array.isArray(items)) {
       console.log(`📦 [UPDATE] Reemplazando CSV con ${items.length} items`);
       
