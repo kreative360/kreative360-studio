@@ -16,6 +16,7 @@ export function middleware(request: NextRequest) {
 
   // ✅ PERMITIR RUTAS PÚBLICAS (APIs que el frontend necesita)
   const publicRoutes = [
+    '/api/auth/login',           // ⭐ CRÍTICO: Permitir login
     '/api/projects/list',
     '/api/projects/images',
     '/api/workflows/list',
