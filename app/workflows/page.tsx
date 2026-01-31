@@ -12,6 +12,11 @@ type Workflow = {
   processedItems: number;
   failedItems: number;
   createdAt: string;
+  project_id?: string;
+  prompt_mode?: string;
+  images_per_reference?: number;
+  global_params?: string;
+  specific_prompts?: string[];
 };
 
 export default function WorkflowsPage() {
@@ -31,19 +36,20 @@ export default function WorkflowsPage() {
   const [specificPrompts, setSpecificPrompts] = useState<string[]>([]);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [creating, setCreating] = useState(false);
+  const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
     loadWorkflows();
   }, []);
 
-  // ✨ NUEVO: Auto-refresh cuando hay workflows procesando
+  // ✨ Auto-refresh cuando hay workflows procesando
   useEffect(() => {
     const hasProcessing = workflows.some(w => w.status === "processing");
     
     if (hasProcessing) {
       const interval = setInterval(() => {
         loadWorkflows();
-      }, 3000); // Actualizar cada 3 segundos
+      }, 3000);
       
       return () => clearInterval(interval);
     }
@@ -78,14 +84,12 @@ export default function WorkflowsPage() {
       reader.onload = (e) => {
         let text = e.target?.result as string;
         
-        // 1. Quitar BOM si existe (UTF-8 BOM)
         if (text.charCodeAt(0) === 0xFEFF) {
           text = text.substring(1);
         }
         
         console.log("📄 CSV Parser - Kasas Decoración Format");
         
-        // 2. Parsear líneas
         const lines = text.split("\n").filter((line) => line.trim());
         
         if (lines.length < 2) {
@@ -93,31 +97,25 @@ export default function WorkflowsPage() {
           return;
         }
         
-        // 3. IGNORAR primera línea (headers) - trabajamos por posición fija
         const dataLines = lines.slice(1);
         
         console.log(`📊 Total líneas de datos: ${dataLines.length}`);
         
-        // 4. Parsear cada línea según POSICIONES FIJAS
         const items = dataLines.map((line, idx) => {
-          // Split por punto y coma
           const cols = line.split(";").map((v) => v.trim());
           
-          // MAPEO FIJO DE COLUMNAS (orden correcto)
-          const reference = cols[0] || "";           // Columna 0: REFERENCIA (OBLIGATORIO)
-          const asin = cols[1] || "";                // Columna 1: ASIN (opcional)
-          const productName = cols[2] || "";         // Columna 2: Nombre (opcional)
-          const url1 = cols[3] || "";                // Columna 3: URL 1 (OBLIGATORIO)
-          const url2 = cols[4] || "";                // Columna 4: URL 2 (opcional)
-          const url3 = cols[5] || "";                // Columna 5: URL 3 (opcional)
-          const url4 = cols[6] || "";                // Columna 6: URL 4 (opcional)
-          const url5 = cols[7] || "";                // Columna 7: URL 5 (opcional)
+          const reference = cols[0] || "";
+          const asin = cols[1] || "";
+          const productName = cols[2] || "";
+          const url1 = cols[3] || "";
+          const url2 = cols[4] || "";
+          const url3 = cols[5] || "";
+          const url4 = cols[6] || "";
+          const url5 = cols[7] || "";
           
-          // 5. Construir array de URLs (solo las que existen y son válidas)
           const imageUrls = [url1, url2, url3, url4, url5]
             .filter((url) => url && url.startsWith("http"));
           
-          // 6. Validaciones OBLIGATORIAS
           if (!reference) {
             console.warn(`⚠️ Línea ${idx + 2}: Sin referencia (OBLIGATORIO), ignorando`);
             return null;
@@ -128,7 +126,6 @@ export default function WorkflowsPage() {
             return null;
           }
           
-          // 7. Nombre del producto: usar el campo Nombre, si no hay usar ASIN, si no usar REFERENCIA
           const finalProductName = productName || asin || reference;
           
           const item = {
@@ -146,7 +143,7 @@ export default function WorkflowsPage() {
           });
           
           return item;
-        }).filter(Boolean); // Quitar nulls
+        }).filter(Boolean);
         
         console.log(`\n🎯 RESULTADO FINAL: ${items.length} productos válidos`);
         
@@ -189,7 +186,6 @@ export default function WorkflowsPage() {
     setCreating(true);
 
     try {
-      // 1. Parsear CSV
       const items = await parseCSV(csvFile);
       
       if (items.length === 0) {
@@ -198,7 +194,6 @@ export default function WorkflowsPage() {
 
       console.log(`📤 Enviando workflow con ${items.length} items`);
 
-      // 2. Crear workflow
       const res = await fetch("/api/workflows/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -237,13 +232,77 @@ export default function WorkflowsPage() {
     }
   };
 
+  // ✨ NUEVO: Abrir modal de edición
+  const openEditModal = (workflow: Workflow) => {
+    setEditingWorkflow(workflow);
+    setWorkflowName(workflow.name);
+    setMode((workflow.prompt_mode as "global" | "specific") || "global");
+    setImagesPerReference(workflow.images_per_reference || 5);
+    setGlobalParams(workflow.global_params || "");
+    setSpecificPrompts(workflow.specific_prompts || []);
+    setShowEditModal(true);
+  };
+
+  // ✨ NUEVO: Guardar cambios del workflow
+  const handleUpdateWorkflow = async () => {
+    if (!workflowName || !editingWorkflow) {
+      alert("Por favor completa el nombre del workflow");
+      return;
+    }
+
+    if (mode === "specific") {
+      const emptyPrompts = specificPrompts.filter((p) => !p.trim());
+      if (emptyPrompts.length > 0) {
+        alert("Por favor completa todos los prompts específicos");
+        return;
+      }
+    }
+
+    setUpdating(true);
+
+    try {
+      const res = await fetch("/api/workflows/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workflowId: editingWorkflow.id,
+          name: workflowName,
+          mode,
+          imagesPerReference,
+          globalParams: mode === "global" ? globalParams : null,
+          specificPrompts: mode === "specific" ? specificPrompts : null,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.error || "Error actualizando workflow");
+      }
+
+      alert(`✅ Workflow "${workflowName}" actualizado correctamente`);
+      setShowEditModal(false);
+      setEditingWorkflow(null);
+      loadWorkflows();
+      
+      // Reset form
+      setWorkflowName("");
+      setGlobalParams("ambiente de uso hiperrealista, estética minimalista, respeta diseño 100%");
+      setSpecificPrompts([]);
+    } catch (error: any) {
+      console.error("❌ Error updating workflow:", error);
+      alert(`Error: ${error.message}`);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   const startWorkflow = async (workflowId: string) => {
     if (!confirm("¿Iniciar procesamiento de este workflow? Esto puede tardar varios minutos.")) {
       return;
     }
 
     try {
-      // Marcar como "processing" inmediatamente para feedback visual
       setWorkflows(prev => prev.map(w => 
         w.id === workflowId ? { ...w, status: "processing" } : w
       ));
@@ -379,7 +438,6 @@ export default function WorkflowsPage() {
                   overflow: "hidden",
                 }}
               >
-                {/* ✨ Animación de procesamiento */}
                 {workflow.status === "processing" && (
                   <div
                     style={{
@@ -401,7 +459,6 @@ export default function WorkflowsPage() {
                       <h3 style={{ fontSize: 18, fontWeight: 700, color: "#111827", marginBottom: 8 }}>
                         {workflow.name}
                       </h3>
-                      {/* ✨ Spinner cuando está procesando */}
                       {workflow.status === "processing" && (
                         <div
                           style={{
@@ -424,7 +481,6 @@ export default function WorkflowsPage() {
                       )}
                     </div>
                     
-                    {/* Barra de progreso */}
                     {workflow.status === "processing" && (
                       <div style={{ marginTop: 12 }}>
                         <div style={{ 
@@ -460,7 +516,7 @@ export default function WorkflowsPage() {
                   </div>
 
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                    {/* Botón Iniciar (solo si está pending) */}
+                    {/* Botón Iniciar */}
                     {workflow.status === "pending" && (
                       <button
                         onClick={() => startWorkflow(workflow.id)}
@@ -479,7 +535,26 @@ export default function WorkflowsPage() {
                       </button>
                     )}
                     
-                    {/* Botón Re-ejecutar (si está completed o failed) */}
+                    {/* ✨ NUEVO: Botón Editar */}
+                    {workflow.status !== "processing" && (
+                      <button
+                        onClick={() => openEditModal(workflow)}
+                        style={{
+                          padding: "8px 16px",
+                          background: "#f59e0b",
+                          color: "#fff",
+                          border: "none",
+                          borderRadius: 8,
+                          fontWeight: 600,
+                          fontSize: 13,
+                          cursor: "pointer",
+                        }}
+                      >
+                        ✏️ Editar
+                      </button>
+                    )}
+                    
+                    {/* Botón Re-ejecutar */}
                     {(workflow.status === "completed" || workflow.status === "failed") && (
                       <button
                         onClick={() => resetWorkflow(workflow.id)}
@@ -498,7 +573,7 @@ export default function WorkflowsPage() {
                       </button>
                     )}
                     
-                    {/* Botón Eliminar (solo si NO está procesando) */}
+                    {/* Botón Eliminar */}
                     {workflow.status !== "processing" && (
                       <button
                         onClick={() => deleteWorkflow(workflow.id, workflow.name)}
@@ -799,7 +874,217 @@ export default function WorkflowsPage() {
         </div>
       )}
 
-      {/* ✨ CSS para animaciones */}
+      {/* ✨ NUEVO: Modal Editar Workflow */}
+      {showEditModal && editingWorkflow && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10000,
+            padding: 20,
+          }}
+          onClick={() => !updating && setShowEditModal(false)}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 16,
+              padding: 32,
+              maxWidth: 800,
+              width: "100%",
+              maxHeight: "90vh",
+              overflowY: "auto",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 24, color: "#f59e0b" }}>
+              ✏️ Editar Workflow
+            </h2>
+
+            {/* Nombre */}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                Nombre del Workflow *
+              </label>
+              <input
+                type="text"
+                value={workflowName}
+                onChange={(e) => setWorkflowName(e.target.value)}
+                placeholder="Ej: Catálogo Casas Decoración"
+                style={{
+                  width: "100%",
+                  padding: "10px 14px",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 8,
+                  fontSize: 14,
+                }}
+              />
+            </div>
+
+            {/* Número de imágenes */}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                Imágenes por Referencia *
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="50"
+                value={imagesPerReference}
+                onChange={(e) => setImagesPerReference(parseInt(e.target.value) || 1)}
+                style={{
+                  width: "100%",
+                  padding: "10px 14px",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 8,
+                  fontSize: 14,
+                }}
+              />
+            </div>
+
+            {/* Modo */}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                Modo de Prompts *
+              </label>
+              <div style={{ display: "flex", gap: 12 }}>
+                <button
+                  onClick={() => setMode("global")}
+                  style={{
+                    flex: 1,
+                    padding: "12px",
+                    background: mode === "global" ? "#f59e0b" : "#f3f4f6",
+                    color: mode === "global" ? "#fff" : "#374151",
+                    border: "none",
+                    borderRadius: 8,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  Global
+                </button>
+                <button
+                  onClick={() => setMode("specific")}
+                  style={{
+                    flex: 1,
+                    padding: "12px",
+                    background: mode === "specific" ? "#f59e0b" : "#f3f4f6",
+                    color: mode === "specific" ? "#fff" : "#374151",
+                    border: "none",
+                    borderRadius: 8,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  Específico
+                </button>
+              </div>
+            </div>
+
+            {/* Parámetros Globales */}
+            {mode === "global" && (
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                  Parámetros Globales
+                </label>
+                <textarea
+                  value={globalParams}
+                  onChange={(e) => setGlobalParams(e.target.value)}
+                  placeholder="Ej: ambiente de uso hiperrealista, estética minimalista..."
+                  style={{
+                    width: "100%",
+                    padding: "10px 14px",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: 8,
+                    fontSize: 14,
+                    minHeight: 80,
+                    fontFamily: "inherit",
+                    resize: "vertical",
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Prompts Específicos */}
+            {mode === "specific" && (
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                  Prompts Específicos (uno por imagen)
+                </label>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {Array(imagesPerReference).fill(0).map((_, i) => (
+                    <input
+                      key={i}
+                      type="text"
+                      value={specificPrompts[i] || ""}
+                      onChange={(e) => {
+                        const newPrompts = [...specificPrompts];
+                        newPrompts[i] = e.target.value;
+                        setSpecificPrompts(newPrompts);
+                      }}
+                      placeholder={`Prompt ${i + 1}: Ej: fondo blanco, vista frontal...`}
+                      style={{
+                        width: "100%",
+                        padding: "10px 14px",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: 8,
+                        fontSize: 14,
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Botones */}
+            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+              <button
+                onClick={() => {
+                  setShowEditModal(false);
+                  setEditingWorkflow(null);
+                }}
+                disabled={updating}
+                style={{
+                  padding: "10px 20px",
+                  background: "#f3f4f6",
+                  color: "#374151",
+                  border: "none",
+                  borderRadius: 8,
+                  fontWeight: 600,
+                  cursor: updating ? "not-allowed" : "pointer",
+                  opacity: updating ? 0.5 : 1,
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleUpdateWorkflow}
+                disabled={updating}
+                style={{
+                  padding: "10px 20px",
+                  background: updating ? "#9ca3af" : "#f59e0b",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  fontWeight: 600,
+                  cursor: updating ? "not-allowed" : "pointer",
+                }}
+              >
+                {updating ? "Guardando..." : "Guardar Cambios"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CSS para animaciones */}
       <style jsx>{`
         @keyframes spin {
           0% { transform: rotate(0deg); }
