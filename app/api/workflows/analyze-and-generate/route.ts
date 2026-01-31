@@ -159,7 +159,7 @@ CRITICAL:
 
     // 3. LLAMAR A GEMINI
     console.log("🤖 [ANALYZE] Calling Gemini API...");
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-image" });
     
     const result = await model.generateContent([
       {
