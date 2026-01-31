@@ -34,6 +34,20 @@ async function refToBase64(ref: string): Promise<string> {
 // =========================
 export async function POST(req: Request) {
   try {
+    // 🔑 VERIFICAR SI ES LLAMADA INTERNA
+    const internalSecret = req.headers.get('x-internal-secret');
+    const isInternalCall = internalSecret === process.env.INTERNAL_API_SECRET;
+    
+    // Si NO es llamada interna, aquí iría la verificación de auth
+    // Pero como tu auth está en middleware, lo manejamos en el PASO 3
+    if (!isInternalCall) {
+      // Por ahora, permitimos que el middleware maneje la auth
+      // Si el middleware ya bloqueó, nunca llegaríamos aquí
+      console.log("⚠️ [GENERATE] No internal secret provided - relying on middleware auth");
+    } else {
+      console.log("✅ [GENERATE] Internal call authenticated");
+    }
+
     const body = JSON.parse(await req.text());
 
     const refsRaw: string[] = Array.isArray(body.refs) ? body.refs : [];
@@ -101,7 +115,7 @@ export async function POST(req: Request) {
         format,
         engine,
         images,
-        prompt_used: prompt, // 🆕 NUEVO: Devolver el prompt que se usó
+        prompt_used: prompt,
       },
       { status: 200 }
     );
