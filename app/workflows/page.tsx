@@ -36,6 +36,19 @@ export default function WorkflowsPage() {
     loadWorkflows();
   }, []);
 
+  // ✨ NUEVO: Auto-refresh cuando hay workflows procesando
+  useEffect(() => {
+    const hasProcessing = workflows.some(w => w.status === "processing");
+    
+    if (hasProcessing) {
+      const interval = setInterval(() => {
+        loadWorkflows();
+      }, 3000); // Actualizar cada 3 segundos
+      
+      return () => clearInterval(interval);
+    }
+  }, [workflows]);
+
   // Actualizar array de prompts específicos cuando cambia el número
   useEffect(() => {
     if (mode === "specific") {
@@ -230,6 +243,11 @@ export default function WorkflowsPage() {
     }
 
     try {
+      // Marcar como "processing" inmediatamente para feedback visual
+      setWorkflows(prev => prev.map(w => 
+        w.id === workflowId ? { ...w, status: "processing" } : w
+      ));
+
       const res = await fetch("/api/workflows/process", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -246,6 +264,7 @@ export default function WorkflowsPage() {
       }
     } catch (error: any) {
       alert(`Error: ${error.message}`);
+      loadWorkflows();
     }
   };
 
@@ -353,16 +372,50 @@ export default function WorkflowsPage() {
                 key={workflow.id}
                 style={{
                   background: "#fff",
-                  border: "1px solid #e5e7eb",
+                  border: workflow.status === "processing" ? "2px solid #ff6b6b" : "1px solid #e5e7eb",
                   borderRadius: 12,
                   padding: 20,
+                  position: "relative",
+                  overflow: "hidden",
                 }}
               >
+                {/* ✨ Animación de procesamiento */}
+                {workflow.status === "processing" && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: 4,
+                      background: "linear-gradient(90deg, #ff6b6b, #ffa07a, #ff6b6b)",
+                      backgroundSize: "200% 100%",
+                      animation: "shimmer 2s linear infinite",
+                    }}
+                  />
+                )}
+                
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
                   <div style={{ flex: 1 }}>
-                    <h3 style={{ fontSize: 18, fontWeight: 700, color: "#111827", marginBottom: 8 }}>
-                      {workflow.name}
-                    </h3>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <h3 style={{ fontSize: 18, fontWeight: 700, color: "#111827", marginBottom: 8 }}>
+                        {workflow.name}
+                      </h3>
+                      {/* ✨ Spinner cuando está procesando */}
+                      {workflow.status === "processing" && (
+                        <div
+                          style={{
+                            width: 20,
+                            height: 20,
+                            border: "3px solid #e5e7eb",
+                            borderTop: "3px solid #ff6b6b",
+                            borderRadius: "50%",
+                            animation: "spin 1s linear infinite",
+                          }}
+                        />
+                      )}
+                    </div>
+                    
                     <div style={{ display: "flex", gap: 16, fontSize: 13, color: "#6b7280" }}>
                       <span>📊 {workflow.totalItems} referencias</span>
                       <span>✅ {workflow.processedItems} procesadas</span>
@@ -374,19 +427,34 @@ export default function WorkflowsPage() {
                     {/* Barra de progreso */}
                     {workflow.status === "processing" && (
                       <div style={{ marginTop: 12 }}>
-                        <div style={{ height: 8, background: "#e5e7eb", borderRadius: 4, overflow: "hidden" }}>
+                        <div style={{ 
+                          display: "flex", 
+                          justifyContent: "space-between", 
+                          alignItems: "center", 
+                          marginBottom: 6 
+                        }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: "#ff6b6b" }}>
+                            🔄 Procesando...
+                          </span>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: "#6b7280" }}>
+                            {workflow.progress}%
+                          </span>
+                        </div>
+                        <div style={{ 
+                          height: 8, 
+                          background: "#e5e7eb", 
+                          borderRadius: 4, 
+                          overflow: "hidden" 
+                        }}>
                           <div
                             style={{
                               height: "100%",
-                              background: "#ff6b6b",
+                              background: "linear-gradient(90deg, #ff6b6b, #ffa07a)",
                               width: `${workflow.progress}%`,
-                              transition: "width 0.3s",
+                              transition: "width 0.5s ease-out",
                             }}
                           />
                         </div>
-                        <span style={{ fontSize: 12, color: "#6b7280", marginTop: 4, display: "block" }}>
-                          {workflow.progress}% completado
-                        </span>
                       </div>
                     )}
                   </div>
@@ -430,22 +498,24 @@ export default function WorkflowsPage() {
                       </button>
                     )}
                     
-                    {/* Botón Eliminar (siempre disponible) */}
-                    <button
-                      onClick={() => deleteWorkflow(workflow.id, workflow.name)}
-                      style={{
-                        padding: "8px 16px",
-                        background: "#ef4444",
-                        color: "#fff",
-                        border: "none",
-                        borderRadius: 8,
-                        fontWeight: 600,
-                        fontSize: 13,
-                        cursor: "pointer",
-                      }}
-                    >
-                      🗑️ Eliminar
-                    </button>
+                    {/* Botón Eliminar (solo si NO está procesando) */}
+                    {workflow.status !== "processing" && (
+                      <button
+                        onClick={() => deleteWorkflow(workflow.id, workflow.name)}
+                        style={{
+                          padding: "8px 16px",
+                          background: "#ef4444",
+                          color: "#fff",
+                          border: "none",
+                          borderRadius: 8,
+                          fontWeight: 600,
+                          fontSize: 13,
+                          cursor: "pointer",
+                        }}
+                      >
+                        🗑️ Eliminar
+                      </button>
+                    )}
                     
                     {/* Estado */}
                     <span
@@ -473,7 +543,7 @@ export default function WorkflowsPage() {
                         textTransform: "capitalize",
                       }}
                     >
-                      {workflow.status}
+                      {workflow.status === "processing" ? "Procesando" : workflow.status}
                     </span>
                   </div>
                 </div>
@@ -687,7 +757,7 @@ export default function WorkflowsPage() {
                 style={{ fontSize: 14 }}
               />
               <p style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
-                📋 Formato: REFERENCIA;;ASIN;URL 1;URL 2;URL 3;URL 4;URL 5;
+                📋 Formato: REFERENCIA;ASIN;NOMBRE;URL 1;URL 2;URL 3;URL 4;URL 5
               </p>
             </div>
 
@@ -728,6 +798,19 @@ export default function WorkflowsPage() {
           </div>
         </div>
       )}
+
+      {/* ✨ CSS para animaciones */}
+      <style jsx>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        
+        @keyframes shimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+      `}</style>
     </div>
   );
 }
