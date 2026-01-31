@@ -11,16 +11,226 @@ const supabase = createClient(
 
 // 🔧 FUNCIÓN PARA OBTENER BASE URL
 function getBaseUrl() {
-  // En Vercel, usa VERCEL_URL
   if (process.env.VERCEL_URL) {
     return `https://${process.env.VERCEL_URL}`;
   }
-  // Fallback a variable manual
   if (process.env.NEXT_PUBLIC_APP_URL) {
     return process.env.NEXT_PUBLIC_APP_URL;
   }
-  // Local development
   return "http://localhost:3000";
+}
+
+// 🔧 FUNCIÓN PARA PROCESAR UN ITEM (INLINE)
+async function processItemInline(workflowId: string, itemId: string, baseUrl: string) {
+  const startTime = Date.now();
+  let itemReference = "unknown";
+
+  try {
+    // 1. OBTENER WORKFLOW Y ITEM
+    console.log(`📦 [PROCESS-ITEM] Fetching workflow and item from DB...`);
+    
+    const { data: workflow, error: workflowError } = await supabase
+      .from("workflows")
+      .select("*")
+      .eq("id", workflowId)
+      .single();
+
+    if (workflowError) {
+      throw new Error(`Workflow fetch failed: ${workflowError.message}`);
+    }
+
+    const { data: item, error: itemError } = await supabase
+      .from("workflow_items")
+      .select("*")
+      .eq("id", itemId)
+      .single();
+
+    if (itemError) {
+      throw new Error(`Item fetch failed: ${itemError.message}`);
+    }
+
+    if (!workflow || !item) {
+      throw new Error("Workflow or item not found");
+    }
+
+    itemReference = item.reference;
+    console.log(`✅ [PROCESS-ITEM] Found item: ${itemReference}`);
+
+    // 2. MARCAR COMO PROCESSING
+    await supabase
+      .from("workflow_items")
+      .update({ status: "processing" })
+      .eq("id", itemId);
+
+    // 3. ANALIZAR Y GENERAR PROMPTS
+    console.log("🧠 [PROCESS-ITEM] Starting AI analysis...");
+    
+    const imageUrls = typeof item.image_urls === 'string' 
+      ? JSON.parse(item.image_urls) 
+      : item.image_urls;
+    
+    const firstImageUrl = imageUrls[0];
+    console.log(`📸 [PROCESS-ITEM] Using reference image: ${firstImageUrl}`);
+
+    const analyzePayload = {
+      productName: item.product_name,
+      imageUrl: firstImageUrl,
+      mode: workflow.prompt_mode,
+      imagesCount: workflow.images_per_reference,
+      globalParams: workflow.global_params,
+      specificPrompts: typeof workflow.specific_prompts === 'string'
+        ? JSON.parse(workflow.specific_prompts)
+        : workflow.specific_prompts,
+    };
+
+    const analyzeRes = await fetch(
+      `${baseUrl}/api/workflows/analyze-and-generate`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(analyzePayload),
+      }
+    );
+
+    if (!analyzeRes.ok) {
+      const errorText = await analyzeRes.text();
+      throw new Error(`Analyze API returned ${analyzeRes.status}: ${errorText.substring(0, 200)}`);
+    }
+
+    const analyzeData = await analyzeRes.json();
+
+    if (!analyzeData.success) {
+      throw new Error(`Analysis failed: ${analyzeData.error}`);
+    }
+
+    console.log(`✅ [PROCESS-ITEM] Analysis successful - Product type: ${analyzeData.product_type}`);
+    console.log(`📝 [PROCESS-ITEM] Generated ${analyzeData.prompts.length} prompts`);
+
+    // 4. GUARDAR PROMPTS GENERADOS
+    await supabase
+      .from("workflow_items")
+      .update({
+        detected_product_type: analyzeData.product_type,
+        detection_description: analyzeData.description,
+        detection_confidence: analyzeData.confidence,
+        generated_prompts: JSON.stringify(analyzeData.prompts),
+      })
+      .eq("id", itemId);
+
+    // 5. GENERAR IMÁGENES
+    console.log("🎨 [PROCESS-ITEM] Starting image generation...");
+    const generatedImages = [];
+
+    for (let i = 0; i < analyzeData.prompts.length; i++) {
+      const prompt = analyzeData.prompts[i];
+      console.log(`🖼️ [PROCESS-ITEM] Generating image ${i + 1}/${analyzeData.prompts.length}...`);
+
+      try {
+        const generateRes = await fetch(
+          `${baseUrl}/api/generate`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              refs: [firstImageUrl],
+              count: 1,
+              overridePrompt: prompt,
+              engine: "v2",
+            }),
+          }
+        );
+
+        if (!generateRes.ok) {
+          console.warn(`⚠️ [PROCESS-ITEM] Generate API returned ${generateRes.status} for image ${i + 1}`);
+          continue;
+        }
+
+        const generateData = await generateRes.json();
+
+        if (generateData.images && generateData.images.length > 0) {
+          generatedImages.push({
+            url: generateData.images[0],
+            prompt: prompt,
+            index: i + 1,
+          });
+          console.log(`✅ [PROCESS-ITEM] Image ${i + 1} generated successfully`);
+        }
+      } catch (imgError: any) {
+        console.error(`❌ [PROCESS-ITEM] Error generating image ${i + 1}:`, imgError.message);
+      }
+    }
+
+    console.log(`🎯 [PROCESS-ITEM] Generated ${generatedImages.length}/${analyzeData.prompts.length} images`);
+
+    // 6. GUARDAR IMÁGENES Y ENVIAR A PROYECTO
+    if (generatedImages.length > 0) {
+      console.log("📦 [PROCESS-ITEM] Saving images to project...");
+      
+      const { error: insertError } = await supabase.from("project_images").insert(
+        generatedImages.map((img) => ({
+          project_id: workflow.project_id,
+          reference: item.reference,
+          asin: item.asin,
+          url: img.url,
+          original_image_url: firstImageUrl,
+          prompt_used: img.prompt,
+          index: img.index,
+          validation_status: "pending",
+        }))
+      );
+
+      if (insertError) {
+        console.error("❌ [PROCESS-ITEM] Error inserting images:", insertError);
+      } else {
+        console.log(`✅ [PROCESS-ITEM] ${generatedImages.length} images saved to project`);
+      }
+    }
+
+    // 7. MARCAR COMO COMPLETADO
+    await supabase
+      .from("workflow_items")
+      .update({
+        status: "completed",
+        generated_images: JSON.stringify(generatedImages),
+        processed_at: new Date().toISOString(),
+      })
+      .eq("id", itemId);
+
+    // 8. ACTUALIZAR CONTADOR DEL WORKFLOW
+    await supabase.rpc("increment_workflow_processed", { workflow_id: workflowId });
+
+    const duration = Date.now() - startTime;
+    console.log(`✅ [PROCESS-ITEM] COMPLETED - ${itemReference} - ${duration}ms - ${generatedImages.length} images`);
+
+    return {
+      success: true,
+      reference: item.reference,
+      imagesGenerated: generatedImages.length,
+    };
+  } catch (error: any) {
+    const duration = Date.now() - startTime;
+    console.error(`❌ [PROCESS-ITEM] FAILED - ${itemReference} - ${duration}ms`);
+    console.error(`❌ [PROCESS-ITEM] Error:`, error.message);
+
+    // Marcar como fallido
+    try {
+      await supabase
+        .from("workflow_items")
+        .update({
+          status: "failed",
+          error_message: error.message,
+        })
+        .eq("id", itemId);
+    } catch (updateError) {
+      console.error("❌ [PROCESS-ITEM] Could not mark item as failed:", updateError);
+    }
+
+    return {
+      success: false,
+      reference: itemReference,
+      error: error.message,
+    };
+  }
 }
 
 export async function POST(request: Request) {
@@ -85,59 +295,27 @@ export async function POST(request: Request) {
     let successCount = 0;
     let failedCount = 0;
 
-    // 4. PROCESAR CADA ITEM SECUENCIALMENTE
+    // 4. PROCESAR CADA ITEM SECUENCIALMENTE (INLINE)
     for (let i = 0; i < (items?.length || 0); i++) {
       const item = items![i];
       console.log(`\n📦 [PROCESS] Processing item ${i + 1}/${items!.length}: ${item.reference}`);
 
-      try {
-        const processRes = await fetch(
-          `${baseUrl}/api/workflows/process-item`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              workflowId,
-              itemId: item.id,
-            }),
-          }
-        );
+      const result = await processItemInline(workflowId, item.id, baseUrl);
 
-        const processData = await processRes.json();
-
-        if (processData.success) {
-          successCount++;
-          results.push({
-            reference: item.reference,
-            status: "success",
-            imagesGenerated: processData.item?.imagesGenerated || 0,
-          });
-          console.log(`✅ [PROCESS] Item ${item.reference} completed successfully`);
-        } else {
-          failedCount++;
-          results.push({
-            reference: item.reference,
-            status: "failed",
-            error: processData.error,
-          });
-          console.error(`❌ [PROCESS] Item ${item.reference} failed:`, processData.error);
-          
-          // Actualizar contador de fallidos
-          await supabase
-            .from("workflows")
-            .update({
-              failed_items: failedCount,
-            })
-            .eq("id", workflowId);
-        }
-      } catch (error: any) {
+      if (result.success) {
+        successCount++;
+        results.push({
+          reference: item.reference,
+          status: "success",
+          imagesGenerated: result.imagesGenerated,
+        });
+      } else {
         failedCount++;
         results.push({
           reference: item.reference,
           status: "failed",
-          error: error.message,
+          error: result.error,
         });
-        console.error(`❌ [PROCESS] Error processing item ${item.reference}:`, error.message);
         
         // Actualizar contador de fallidos
         await supabase
