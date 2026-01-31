@@ -5,12 +5,13 @@ export async function POST(req: Request) {
   try {
     const { 
       workflowId, 
-      name, 
+      name,
+      projectId,
       mode, 
       imagesPerReference, 
       globalParams, 
       specificPrompts,
-      items // items del CSV
+      items
     } = await req.json();
 
     if (!workflowId) {
@@ -29,14 +30,13 @@ export async function POST(req: Request) {
 
     console.log("📝 [UPDATE] Actualizando workflow:", workflowId);
 
-    // Preparar datos de actualización (SIN updated_at)
     const updateData: any = {
       name,
+      project_id: projectId,
       prompt_mode: mode,
       images_per_reference: imagesPerReference,
     };
 
-    // Añadir prompts según el modo
     if (mode === "global") {
       updateData.global_params = globalParams;
       updateData.specific_prompts = null;
@@ -45,11 +45,9 @@ export async function POST(req: Request) {
       updateData.specific_prompts = specificPrompts;
     }
 
-    // Si hay items, reemplazar CSV
     if (items && Array.isArray(items)) {
       console.log(`📦 [UPDATE] Reemplazando CSV con ${items.length} items`);
       
-      // 1. Eliminar items antiguos
       const { error: deleteError } = await supabaseAdmin
         .from("workflow_items")
         .delete()
@@ -60,7 +58,6 @@ export async function POST(req: Request) {
         throw deleteError;
       }
 
-      // 2. Insertar nuevos items
       const workflowItems = items.map((item: any) => ({
         workflow_id: workflowId,
         reference: item.reference,
@@ -79,14 +76,12 @@ export async function POST(req: Request) {
         throw insertError;
       }
 
-      // 3. Actualizar contadores
       updateData.total_items = items.length;
       updateData.processed_items = 0;
       updateData.failed_items = 0;
-      updateData.status = "pending"; // Resetear a pending
+      updateData.status = "pending";
     }
 
-    // Actualizar workflow
     const { data, error } = await supabaseAdmin
       .from("workflows")
       .update(updateData)

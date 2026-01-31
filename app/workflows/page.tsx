@@ -35,7 +35,7 @@ export default function WorkflowsPage() {
   const [globalParams, setGlobalParams] = useState("ambiente de uso hiperrealista, estética minimalista, respeta diseño 100%");
   const [specificPrompts, setSpecificPrompts] = useState<string[]>([]);
   const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [replaceCsv, setReplaceCsv] = useState(false); // ✨ NUEVO
+  const [replaceCsv, setReplaceCsv] = useState(false);
   const [creating, setCreating] = useState(false);
   const [updating, setUpdating] = useState(false);
 
@@ -217,7 +217,6 @@ export default function WorkflowsPage() {
       setShowCreateModal(false);
       loadWorkflows();
       
-      // Reset form
       setWorkflowName("");
       setProjectId("");
       setCsvFile(null);
@@ -231,23 +230,27 @@ export default function WorkflowsPage() {
     }
   };
 
-  // ✨ Abrir modal de edición
   const openEditModal = (workflow: Workflow) => {
     setEditingWorkflow(workflow);
     setWorkflowName(workflow.name);
+    setProjectId(workflow.project_id || "");
     setMode((workflow.prompt_mode as "global" | "specific") || "global");
     setImagesPerReference(workflow.images_per_reference || 5);
     setGlobalParams(workflow.global_params || "");
     setSpecificPrompts(workflow.specific_prompts || []);
-    setReplaceCsv(false); // Reset checkbox
-    setCsvFile(null); // Reset file
+    setReplaceCsv(false);
+    setCsvFile(null);
     setShowEditModal(true);
   };
 
-  // ✨ Guardar cambios del workflow
   const handleUpdateWorkflow = async () => {
     if (!workflowName || !editingWorkflow) {
       alert("Por favor completa el nombre del workflow");
+      return;
+    }
+
+    if (!projectId) {
+      alert("Por favor completa el ID del proyecto");
       return;
     }
 
@@ -259,7 +262,6 @@ export default function WorkflowsPage() {
       }
     }
 
-    // Si quiere reemplazar CSV, validar que haya archivo
     if (replaceCsv && !csvFile) {
       alert("Por favor selecciona un archivo CSV");
       return;
@@ -270,7 +272,6 @@ export default function WorkflowsPage() {
     try {
       let newItems = null;
 
-      // Si se reemplaza CSV, parsear el nuevo
       if (replaceCsv && csvFile) {
         newItems = await parseCSV(csvFile);
         
@@ -287,11 +288,12 @@ export default function WorkflowsPage() {
         body: JSON.stringify({
           workflowId: editingWorkflow.id,
           name: workflowName,
+          projectId: projectId,
           mode,
           imagesPerReference,
           globalParams: mode === "global" ? globalParams : null,
           specificPrompts: mode === "specific" ? specificPrompts : null,
-          items: newItems, // null si no se reemplaza, array si sí
+          items: newItems,
         }),
       });
 
@@ -308,8 +310,8 @@ export default function WorkflowsPage() {
       setCsvFile(null);
       loadWorkflows();
       
-      // Reset form
       setWorkflowName("");
+      setProjectId("");
       setGlobalParams("ambiente de uso hiperrealista, estética minimalista, respeta diseño 100%");
       setSpecificPrompts([]);
     } catch (error: any) {
@@ -402,7 +404,6 @@ export default function WorkflowsPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f9fafb", padding: 24 }}>
-      {/* Header */}
       <div style={{ maxWidth: 1400, margin: "0 auto", marginBottom: 32 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
@@ -431,7 +432,6 @@ export default function WorkflowsPage() {
         </div>
       </div>
 
-      {/* Lista de Workflows */}
       <div style={{ maxWidth: 1400, margin: "0 auto" }}>
         {loading ? (
           <div style={{ textAlign: "center", padding: 80, color: "#6b7280" }}>
@@ -539,7 +539,6 @@ export default function WorkflowsPage() {
                   </div>
 
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                    {/* Botón Iniciar */}
                     {workflow.status === "pending" && (
                       <button
                         onClick={() => startWorkflow(workflow.id)}
@@ -558,7 +557,6 @@ export default function WorkflowsPage() {
                       </button>
                     )}
                     
-                    {/* Botón Editar */}
                     {workflow.status !== "processing" && (
                       <button
                         onClick={() => openEditModal(workflow)}
@@ -577,7 +575,6 @@ export default function WorkflowsPage() {
                       </button>
                     )}
                     
-                    {/* Botón Re-ejecutar */}
                     {(workflow.status === "completed" || workflow.status === "failed") && (
                       <button
                         onClick={() => resetWorkflow(workflow.id)}
@@ -596,7 +593,6 @@ export default function WorkflowsPage() {
                       </button>
                     )}
                     
-                    {/* Botón Eliminar */}
                     {workflow.status !== "processing" && (
                       <button
                         onClick={() => deleteWorkflow(workflow.id, workflow.name)}
@@ -615,7 +611,6 @@ export default function WorkflowsPage() {
                       </button>
                     )}
                     
-                    {/* Estado */}
                     <span
                       style={{
                         padding: "8px 16px",
@@ -651,7 +646,6 @@ export default function WorkflowsPage() {
         )}
       </div>
 
-      {/* Modal Crear Workflow */}
       {showCreateModal && (
         <div
           style={{
@@ -685,7 +679,6 @@ export default function WorkflowsPage() {
               Crear Nuevo Workflow
             </h2>
 
-            {/* Nombre */}
             <div style={{ marginBottom: 20 }}>
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
                 Nombre del Workflow *
@@ -705,7 +698,6 @@ export default function WorkflowsPage() {
               />
             </div>
 
-            {/* Project ID */}
             <div style={{ marginBottom: 20 }}>
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
                 ID del Proyecto *
@@ -728,7 +720,6 @@ export default function WorkflowsPage() {
               </p>
             </div>
 
-            {/* Número de imágenes */}
             <div style={{ marginBottom: 20 }}>
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
                 Imágenes por Referencia *
@@ -749,7 +740,6 @@ export default function WorkflowsPage() {
               />
             </div>
 
-            {/* Modo */}
             <div style={{ marginBottom: 20 }}>
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
                 Modo de Prompts *
@@ -788,7 +778,6 @@ export default function WorkflowsPage() {
               </div>
             </div>
 
-            {/* Parámetros Globales */}
             {mode === "global" && (
               <div style={{ marginBottom: 20 }}>
                 <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
@@ -812,7 +801,6 @@ export default function WorkflowsPage() {
               </div>
             )}
 
-            {/* Prompts Específicos */}
             {mode === "specific" && (
               <div style={{ marginBottom: 20 }}>
                 <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
@@ -843,7 +831,6 @@ export default function WorkflowsPage() {
               </div>
             )}
 
-            {/* CSV File */}
             <div style={{ marginBottom: 24 }}>
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
                 Archivo CSV * (Formato Kasas Decoración)
@@ -859,7 +846,6 @@ export default function WorkflowsPage() {
               </p>
             </div>
 
-            {/* Botones */}
             <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
               <button
                 onClick={() => setShowCreateModal(false)}
@@ -897,7 +883,6 @@ export default function WorkflowsPage() {
         </div>
       )}
 
-      {/* ✨ Modal Editar Workflow */}
       {showEditModal && editingWorkflow && (
         <div
           style={{
@@ -931,7 +916,6 @@ export default function WorkflowsPage() {
               ✏️ Editar Workflow
             </h2>
 
-            {/* Nombre */}
             <div style={{ marginBottom: 20 }}>
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
                 Nombre del Workflow *
@@ -951,7 +935,28 @@ export default function WorkflowsPage() {
               />
             </div>
 
-            {/* Número de imágenes */}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                ID del Proyecto *
+              </label>
+              <input
+                type="text"
+                value={projectId}
+                onChange={(e) => setProjectId(e.target.value)}
+                placeholder="UUID del proyecto en Supabase"
+                style={{
+                  width: "100%",
+                  padding: "10px 14px",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 8,
+                  fontSize: 14,
+                }}
+              />
+              <p style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
+                💡 Proyecto donde se guardarán las imágenes generadas
+              </p>
+            </div>
+
             <div style={{ marginBottom: 20 }}>
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
                 Imágenes por Referencia *
@@ -972,7 +977,6 @@ export default function WorkflowsPage() {
               />
             </div>
 
-            {/* Modo */}
             <div style={{ marginBottom: 20 }}>
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
                 Modo de Prompts *
@@ -1011,7 +1015,6 @@ export default function WorkflowsPage() {
               </div>
             </div>
 
-            {/* Parámetros Globales */}
             {mode === "global" && (
               <div style={{ marginBottom: 20 }}>
                 <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
@@ -1035,7 +1038,6 @@ export default function WorkflowsPage() {
               </div>
             )}
 
-            {/* Prompts Específicos */}
             {mode === "specific" && (
               <div style={{ marginBottom: 20 }}>
                 <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
@@ -1066,13 +1068,11 @@ export default function WorkflowsPage() {
               </div>
             )}
 
-            {/* ✨ NUEVO: Sección CSV */}
             <div style={{ marginBottom: 20 }}>
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
                 Catálogo CSV
               </label>
               
-              {/* Info del CSV actual */}
               <div style={{
                 padding: 12,
                 background: "#f9fafb",
@@ -1091,7 +1091,6 @@ export default function WorkflowsPage() {
                 </p>
               </div>
 
-              {/* Checkbox para reemplazar */}
               <div style={{ marginBottom: 12 }}>
                 <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
                   <input
@@ -1111,7 +1110,6 @@ export default function WorkflowsPage() {
                 </label>
               </div>
 
-              {/* Input de archivo (solo si checkbox marcado) */}
               {replaceCsv && (
                 <div>
                   <input
@@ -1127,7 +1125,6 @@ export default function WorkflowsPage() {
               )}
             </div>
 
-            {/* Botones */}
             <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
               <button
                 onClick={() => {
@@ -1170,7 +1167,6 @@ export default function WorkflowsPage() {
         </div>
       )}
 
-      {/* CSS para animaciones */}
       <style jsx>{`
         @keyframes spin {
           0% { transform: rotate(0deg); }
