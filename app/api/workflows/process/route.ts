@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -8,6 +9,8 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
+
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
 
 // 🔧 FUNCIÓN PARA OBTENER BASE URL
 function getBaseUrl() {
@@ -20,14 +23,161 @@ function getBaseUrl() {
   return "http://localhost:3000";
 }
 
-// 🔧 FUNCIÓN PARA PROCESAR UN ITEM (INLINE)
+// 🧠 FUNCIÓN INLINE: ANALIZAR Y GENERAR PROMPTS
+async function analyzeAndGeneratePrompts(
+  productName: string,
+  imageUrl: string,
+  mode: string,
+  imagesCount: number,
+  globalParams?: string,
+  specificPrompts?: string[]
+) {
+  try {
+    console.log("🧠 [ANALYZE] Starting analysis inline...");
+    
+    // 1. FETCH IMAGE
+    const imageRes = await fetch(imageUrl);
+    if (!imageRes.ok) {
+      throw new Error(`Failed to fetch image: ${imageRes.status} ${imageRes.statusText}`);
+    }
+    
+    const imageBuffer = await imageRes.arrayBuffer();
+    const base64Image = Buffer.from(imageBuffer).toString("base64");
+    console.log(`✅ [ANALYZE] Image fetched (${(imageBuffer.byteLength / 1024).toFixed(2)} KB)`);
+
+    // 2. CONSTRUIR PROMPT SEGÚN MODO
+    let masterPrompt = "";
+
+    if (mode === "global") {
+      masterPrompt = `You are an expert product photographer and prompt engineer.
+
+TASK: Analyze this product and generate ${imagesCount} specialized photography prompts.
+
+PRODUCT INFO:
+${productName ? `Name: ${productName}` : "Name: Not provided"}
+
+USER'S GLOBAL REQUIREMENTS (apply to ALL ${imagesCount} images):
+${globalParams || "Create hyperrealistic product photography, respecting the original design 100%"}
+
+YOUR JOB:
+1. IDENTIFY what type of product this is (be very specific)
+2. GENERATE ${imagesCount} UNIQUE prompts that:
+   - Are tailored specifically for THIS type of product
+   - Incorporate the user's global requirements in ALL prompts
+   - Show the product in ${imagesCount} DIFFERENT realistic scenarios
+   - Vary in composition, lighting, angle, and context
+   - Each prompt MUST be completely DIFFERENT from the others
+   - Are professional and detailed
+
+RESPOND IN THIS EXACT JSON FORMAT:
+{
+  "product_type": "specific product type",
+  "description": "brief description",
+  "confidence": 0.95,
+  "prompts": [
+    "Prompt 1: detailed prompt here...",
+    "Prompt 2: detailed prompt here...",
+    ${Array(Math.max(0, imagesCount - 2)).fill('    "Prompt N: detailed prompt here..."').join(',\n')}
+  ]
+}
+
+CRITICAL: Generate EXACTLY ${imagesCount} prompts, each one UNIQUE.`;
+    } else {
+      const specificList = specificPrompts!
+        .map((spec: string, i: number) => `${i + 1}. ${spec}`)
+        .join('\n');
+
+      masterPrompt = `You are an expert product photographer and prompt engineer.
+
+TASK: Analyze this product and adapt ${imagesCount} user-specified requirements into professional prompts.
+
+PRODUCT INFO:
+${productName ? `Name: ${productName}` : "Name: Not provided"}
+
+USER'S SPECIFIC REQUIREMENTS (one per image):
+${specificList}
+
+YOUR JOB:
+1. IDENTIFY what type of product this is (be very specific)
+2. For EACH of the ${imagesCount} specifications above:
+   - ADAPT it to this specific product type
+   - Make it professional and detailed
+   - Preserve the user's intent but make it product-appropriate
+   - Add technical photography details
+
+RESPOND IN THIS EXACT JSON FORMAT:
+{
+  "product_type": "specific product type",
+  "description": "brief description",
+  "confidence": 0.95,
+  "prompts": [
+    "Adapted prompt 1 based on user spec 1...",
+    "Adapted prompt 2 based on user spec 2...",
+    ${Array(Math.max(0, imagesCount - 2)).fill('    "Adapted prompt N based on user spec N..."').join(',\n')}
+  ]
+}
+
+CRITICAL: Generate EXACTLY ${imagesCount} prompts.`;
+    }
+
+    // 3. LLAMAR A GEMINI
+    console.log("🤖 [ANALYZE] Calling Gemini API...");
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+    
+    const result = await model.generateContent([
+      {
+        inlineData: {
+          mimeType: "image/jpeg",
+          data: base64Image,
+        },
+      },
+      masterPrompt,
+    ]);
+
+    const responseText = result.response.text().trim();
+    console.log("📤 [ANALYZE] Gemini response received");
+
+    // 4. PARSEAR JSON
+    let jsonText = responseText;
+    if (jsonText.includes("```json")) {
+      jsonText = jsonText.split("```json")[1].split("```")[0].trim();
+    } else if (jsonText.includes("```")) {
+      jsonText = jsonText.split("```")[1].split("```")[0].trim();
+    }
+
+    const analysis = JSON.parse(jsonText);
+
+    // 5. VALIDAR
+    if (!analysis.prompts || analysis.prompts.length !== imagesCount) {
+      throw new Error(`Generated ${analysis.prompts?.length || 0} prompts but expected ${imagesCount}`);
+    }
+
+    console.log(`✅ [ANALYZE] SUCCESS - Product: ${analysis.product_type}, Prompts: ${analysis.prompts.length}`);
+
+    return {
+      success: true,
+      product_type: analysis.product_type,
+      description: analysis.description,
+      confidence: analysis.confidence || 0.9,
+      prompts: analysis.prompts,
+    };
+  } catch (error: any) {
+    console.error(`❌ [ANALYZE] Error:`, error.message);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+}
+
+// 🔧 FUNCIÓN INLINE: PROCESAR UN ITEM COMPLETO
 async function processItemInline(workflowId: string, itemId: string, baseUrl: string) {
   const startTime = Date.now();
   let itemReference = "unknown";
 
   try {
     // 1. OBTENER WORKFLOW Y ITEM
-    console.log(`📦 [PROCESS-ITEM] Fetching workflow and item from DB...`);
+    console.log(`📦 [PROCESS-ITEM] Fetching workflow and item...`);
     
     const { data: workflow, error: workflowError } = await supabase
       .from("workflows")
@@ -62,7 +212,7 @@ async function processItemInline(workflowId: string, itemId: string, baseUrl: st
       .update({ status: "processing" })
       .eq("id", itemId);
 
-    // 3. ANALIZAR Y GENERAR PROMPTS
+    // 3. ANALIZAR Y GENERAR PROMPTS (INLINE)
     console.log("🧠 [PROCESS-ITEM] Starting AI analysis...");
     
     const imageUrls = typeof item.image_urls === 'string' 
@@ -72,39 +222,22 @@ async function processItemInline(workflowId: string, itemId: string, baseUrl: st
     const firstImageUrl = imageUrls[0];
     console.log(`📸 [PROCESS-ITEM] Using reference image: ${firstImageUrl}`);
 
-    const analyzePayload = {
-      productName: item.product_name,
-      imageUrl: firstImageUrl,
-      mode: workflow.prompt_mode,
-      imagesCount: workflow.images_per_reference,
-      globalParams: workflow.global_params,
-      specificPrompts: typeof workflow.specific_prompts === 'string'
+    const analyzeData = await analyzeAndGeneratePrompts(
+      item.product_name,
+      firstImageUrl,
+      workflow.prompt_mode,
+      workflow.images_per_reference,
+      workflow.global_params,
+      typeof workflow.specific_prompts === 'string'
         ? JSON.parse(workflow.specific_prompts)
-        : workflow.specific_prompts,
-    };
-
-    const analyzeRes = await fetch(
-      `${baseUrl}/api/workflows/analyze-and-generate`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(analyzePayload),
-      }
+        : workflow.specific_prompts
     );
-
-    if (!analyzeRes.ok) {
-      const errorText = await analyzeRes.text();
-      throw new Error(`Analyze API returned ${analyzeRes.status}: ${errorText.substring(0, 200)}`);
-    }
-
-    const analyzeData = await analyzeRes.json();
 
     if (!analyzeData.success) {
       throw new Error(`Analysis failed: ${analyzeData.error}`);
     }
 
     console.log(`✅ [PROCESS-ITEM] Analysis successful - Product type: ${analyzeData.product_type}`);
-    console.log(`📝 [PROCESS-ITEM] Generated ${analyzeData.prompts.length} prompts`);
 
     // 4. GUARDAR PROMPTS GENERADOS
     await supabase
@@ -121,9 +254,9 @@ async function processItemInline(workflowId: string, itemId: string, baseUrl: st
     console.log("🎨 [PROCESS-ITEM] Starting image generation...");
     const generatedImages = [];
 
-    for (let i = 0; i < analyzeData.prompts.length; i++) {
-      const prompt = analyzeData.prompts[i];
-      console.log(`🖼️ [PROCESS-ITEM] Generating image ${i + 1}/${analyzeData.prompts.length}...`);
+    for (let i = 0; i < analyzeData.prompts!.length; i++) {
+      const prompt = analyzeData.prompts![i];
+      console.log(`🖼️ [PROCESS-ITEM] Generating image ${i + 1}/${analyzeData.prompts!.length}...`);
 
       try {
         const generateRes = await fetch(
@@ -160,9 +293,9 @@ async function processItemInline(workflowId: string, itemId: string, baseUrl: st
       }
     }
 
-    console.log(`🎯 [PROCESS-ITEM] Generated ${generatedImages.length}/${analyzeData.prompts.length} images`);
+    console.log(`🎯 [PROCESS-ITEM] Generated ${generatedImages.length}/${analyzeData.prompts!.length} images`);
 
-    // 6. GUARDAR IMÁGENES Y ENVIAR A PROYECTO
+    // 6. GUARDAR IMÁGENES EN PROYECTO
     if (generatedImages.length > 0) {
       console.log("📦 [PROCESS-ITEM] Saving images to project...");
       
