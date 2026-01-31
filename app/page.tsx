@@ -17,14 +17,20 @@ export default function HomePage() {
       description: "Editor avanzado con tamaños, formatos y calidad hasta 300 ppp.",
     },
     {
+      href: "/workflows",
+      title: "Workflows Automáticos",
+      icon: "🤖",
+      description: "Procesamiento masivo de catálogos con prompts adaptativos e IA.",
+    },
+    {
       href: "/projects",
-      title: "Galeria Proyectos",
+      title: "Galería Proyectos",
       icon: "📁",
       description: "Gestiona y organiza todos tus proyectos de imágenes generadas.",
     },
     {
       href: "/prompts",
-      title: "Galeria Prompts",
+      title: "Galería Prompts",
       icon: "📝",
       description: "Biblioteca de prompts reutilizables para generar imágenes consistentes.",
     },
@@ -40,8 +46,7 @@ export default function HomePage() {
     <main
       style={{
         minHeight: "100vh",
-        background: "#0b0c0e",
-        color: "#fff",
+        background: "linear-gradient(135deg, #ff9a9e 0%, #fecfef 50%, #ffeaa7 100%)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -50,12 +55,31 @@ export default function HomePage() {
         textAlign: "center",
       }}
     >
+      {/* Logo / Icono principal */}
+      <div
+        style={{
+          width: 100,
+          height: 100,
+          background: "linear-gradient(135deg, #ff6b6b 0%, #ffa07a 100%)",
+          borderRadius: "50%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 50,
+          marginBottom: 24,
+          boxShadow: "0 10px 30px rgba(255, 107, 107, 0.3)",
+        }}
+      >
+        🎨
+      </div>
+
       <h1
         style={{
-          fontSize: "2.6rem",
+          fontSize: "2.8rem",
           fontWeight: 800,
-          color: "#FF6D6D",
+          color: "#ff6b6b",
           marginBottom: "16px",
+          textShadow: "0 2px 10px rgba(255, 107, 107, 0.2)",
         }}
       >
         Kreative 360º · Panel de trabajo
@@ -63,14 +87,16 @@ export default function HomePage() {
 
       <p
         style={{
-          color: "#cbd5e1",
+          color: "#374151",
           maxWidth: 640,
-          lineHeight: 1.6,
+          lineHeight: 1.7,
           marginBottom: 40,
+          fontSize: "1.05rem",
+          fontWeight: 500,
         }}
       >
         Bienvenido al sistema de herramientas internas de{" "}
-        <strong>Kreative 360º</strong>.
+        <strong style={{ color: "#ff6b6b" }}>Kreative 360º</strong>.
         <br />
         Elige un panel para comenzar:
       </p>
@@ -78,10 +104,10 @@ export default function HomePage() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
           gap: 20,
           width: "100%",
-          maxWidth: 900,
+          maxWidth: 1000,
         }}
       >
         {panels.map((panel) => (
@@ -89,47 +115,57 @@ export default function HomePage() {
             key={panel.href}
             href={panel.href}
             style={{
-              background: "#1A1D21",
-              border: "1px solid #2a2d31",
-              borderRadius: 16,
-              padding: "24px 20px",
+              background: "#ffffff",
+              border: "2px solid transparent",
+              borderRadius: 20,
+              padding: "28px 24px",
               textDecoration: "none",
-              color: "#fff",
+              color: "#1f2937",
               fontWeight: 700,
-              transition: "all 0.2s ease",
+              transition: "all 0.3s ease",
               cursor: "pointer",
+              boxShadow: "0 4px 20px rgba(255, 107, 107, 0.15)",
+              position: "relative",
+              overflow: "hidden",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = "#252831";
-              e.currentTarget.style.borderColor = "#FF6D6D";
-              e.currentTarget.style.transform = "translateY(-4px)";
-              e.currentTarget.style.boxShadow = "0 8px 24px rgba(255, 109, 109, 0.2)";
+              e.currentTarget.style.borderColor = "#ff6b6b";
+              e.currentTarget.style.transform = "translateY(-8px) scale(1.02)";
+              e.currentTarget.style.boxShadow = "0 12px 40px rgba(255, 107, 107, 0.3)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = "#1A1D21";
-              e.currentTarget.style.borderColor = "#2a2d31";
-              e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow = "none";
+              e.currentTarget.style.borderColor = "transparent";
+              e.currentTarget.style.transform = "translateY(0) scale(1)";
+              e.currentTarget.style.boxShadow = "0 4px 20px rgba(255, 107, 107, 0.15)";
             }}
           >
             <div
               style={{
-                fontSize: "2.5rem",
-                marginBottom: 12,
+                fontSize: "3rem",
+                marginBottom: 16,
+                filter: "drop-shadow(0 2px 4px rgba(255, 107, 107, 0.2))",
               }}
             >
               {panel.icon}
             </div>
             <h2
               style={{
-                color: "#FF6D6D",
-                marginBottom: 10,
-                fontSize: "1.2rem",
+                color: "#ff6b6b",
+                marginBottom: 12,
+                fontSize: "1.3rem",
+                fontWeight: 800,
               }}
             >
               {panel.title}
             </h2>
-            <p style={{ color: "#cbd5e1", fontSize: "0.9rem", lineHeight: 1.5 }}>
+            <p
+              style={{
+                color: "#6b7280",
+                fontSize: "0.95rem",
+                lineHeight: 1.6,
+                fontWeight: 500,
+              }}
+            >
               {panel.description}
             </p>
           </Link>
@@ -139,11 +175,12 @@ export default function HomePage() {
       <p
         style={{
           marginTop: 60,
-          color: "#666",
-          fontSize: "0.85rem",
+          color: "#6b7280",
+          fontSize: "0.9rem",
+          fontWeight: 500,
         }}
       >
-        © 2025 Kreative 360º — Panel interno desarrollado por FirstWin Agency
+        Panel interno desarrollado por — Kreative 360º © 
       </p>
     </main>
   );
