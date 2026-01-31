@@ -10,13 +10,14 @@ export function middleware(request: NextRequest) {
   // ✅ PERMITIR LLAMADAS INTERNAS (API-to-API)
   const internalSecret = request.headers.get('x-internal-secret');
   if (internalSecret && internalSecret === process.env.INTERNAL_API_SECRET) {
-    console.log('✅ [MIDDLEWARE] Internal call authenticated');
+    console.log('✅ [MIDDLEWARE] Internal call authenticated:', pathname);
     return NextResponse.next();
   }
 
   // ✅ PERMITIR RUTAS PÚBLICAS (APIs que el frontend necesita)
   const publicRoutes = [
-    '/api/auth/login',           // ⭐ CRÍTICO: Permitir login
+    '/api/auth/login',           // Login
+    '/api/generate',             // ⭐ CRÍTICO: Permitir generación de imágenes
     '/api/projects/list',
     '/api/projects/images',
     '/api/workflows/list',
