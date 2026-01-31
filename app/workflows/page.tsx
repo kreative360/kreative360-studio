@@ -35,6 +35,7 @@ export default function WorkflowsPage() {
   const [globalParams, setGlobalParams] = useState("ambiente de uso hiperrealista, estética minimalista, respeta diseño 100%");
   const [specificPrompts, setSpecificPrompts] = useState<string[]>([]);
   const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [replaceCsv, setReplaceCsv] = useState(false); // ✨ NUEVO
   const [creating, setCreating] = useState(false);
   const [updating, setUpdating] = useState(false);
 
@@ -42,7 +43,6 @@ export default function WorkflowsPage() {
     loadWorkflows();
   }, []);
 
-  // ✨ Auto-refresh cuando hay workflows procesando
   useEffect(() => {
     const hasProcessing = workflows.some(w => w.status === "processing");
     
@@ -55,7 +55,6 @@ export default function WorkflowsPage() {
     }
   }, [workflows]);
 
-  // Actualizar array de prompts específicos cuando cambia el número
   useEffect(() => {
     if (mode === "specific") {
       setSpecificPrompts(
@@ -232,7 +231,7 @@ export default function WorkflowsPage() {
     }
   };
 
-  // ✨ NUEVO: Abrir modal de edición
+  // ✨ Abrir modal de edición
   const openEditModal = (workflow: Workflow) => {
     setEditingWorkflow(workflow);
     setWorkflowName(workflow.name);
@@ -240,10 +239,12 @@ export default function WorkflowsPage() {
     setImagesPerReference(workflow.images_per_reference || 5);
     setGlobalParams(workflow.global_params || "");
     setSpecificPrompts(workflow.specific_prompts || []);
+    setReplaceCsv(false); // Reset checkbox
+    setCsvFile(null); // Reset file
     setShowEditModal(true);
   };
 
-  // ✨ NUEVO: Guardar cambios del workflow
+  // ✨ Guardar cambios del workflow
   const handleUpdateWorkflow = async () => {
     if (!workflowName || !editingWorkflow) {
       alert("Por favor completa el nombre del workflow");
@@ -258,9 +259,28 @@ export default function WorkflowsPage() {
       }
     }
 
+    // Si quiere reemplazar CSV, validar que haya archivo
+    if (replaceCsv && !csvFile) {
+      alert("Por favor selecciona un archivo CSV");
+      return;
+    }
+
     setUpdating(true);
 
     try {
+      let newItems = null;
+
+      // Si se reemplaza CSV, parsear el nuevo
+      if (replaceCsv && csvFile) {
+        newItems = await parseCSV(csvFile);
+        
+        if (newItems.length === 0) {
+          throw new Error("El CSV no contiene datos válidos");
+        }
+
+        console.log(`📤 Nuevo CSV con ${newItems.length} items`);
+      }
+
       const res = await fetch("/api/workflows/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -271,6 +291,7 @@ export default function WorkflowsPage() {
           imagesPerReference,
           globalParams: mode === "global" ? globalParams : null,
           specificPrompts: mode === "specific" ? specificPrompts : null,
+          items: newItems, // null si no se reemplaza, array si sí
         }),
       });
 
@@ -283,6 +304,8 @@ export default function WorkflowsPage() {
       alert(`✅ Workflow "${workflowName}" actualizado correctamente`);
       setShowEditModal(false);
       setEditingWorkflow(null);
+      setReplaceCsv(false);
+      setCsvFile(null);
       loadWorkflows();
       
       // Reset form
@@ -535,13 +558,13 @@ export default function WorkflowsPage() {
                       </button>
                     )}
                     
-                    {/* ✨ NUEVO: Botón Editar */}
+                    {/* Botón Editar */}
                     {workflow.status !== "processing" && (
                       <button
                         onClick={() => openEditModal(workflow)}
                         style={{
                           padding: "8px 16px",
-                          background: "#f59e0b",
+                          background: "#ff6b6b",
                           color: "#fff",
                           border: "none",
                           borderRadius: 8,
@@ -874,7 +897,7 @@ export default function WorkflowsPage() {
         </div>
       )}
 
-      {/* ✨ NUEVO: Modal Editar Workflow */}
+      {/* ✨ Modal Editar Workflow */}
       {showEditModal && editingWorkflow && (
         <div
           style={{
@@ -904,7 +927,7 @@ export default function WorkflowsPage() {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 24, color: "#f59e0b" }}>
+            <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 24, color: "#ff6b6b" }}>
               ✏️ Editar Workflow
             </h2>
 
@@ -960,7 +983,7 @@ export default function WorkflowsPage() {
                   style={{
                     flex: 1,
                     padding: "12px",
-                    background: mode === "global" ? "#f59e0b" : "#f3f4f6",
+                    background: mode === "global" ? "#ff6b6b" : "#f3f4f6",
                     color: mode === "global" ? "#fff" : "#374151",
                     border: "none",
                     borderRadius: 8,
@@ -975,7 +998,7 @@ export default function WorkflowsPage() {
                   style={{
                     flex: 1,
                     padding: "12px",
-                    background: mode === "specific" ? "#f59e0b" : "#f3f4f6",
+                    background: mode === "specific" ? "#ff6b6b" : "#f3f4f6",
                     color: mode === "specific" ? "#fff" : "#374151",
                     border: "none",
                     borderRadius: 8,
@@ -1043,12 +1066,75 @@ export default function WorkflowsPage() {
               </div>
             )}
 
+            {/* ✨ NUEVO: Sección CSV */}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                Catálogo CSV
+              </label>
+              
+              {/* Info del CSV actual */}
+              <div style={{
+                padding: 12,
+                background: "#f9fafb",
+                border: "1px solid #e5e7eb",
+                borderRadius: 8,
+                marginBottom: 12,
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 18 }}>📊</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>
+                    CSV Actual: {editingWorkflow.totalItems} referencias
+                  </span>
+                </div>
+                <p style={{ fontSize: 12, color: "#6b7280", margin: 0 }}>
+                  El workflow usa actualmente un catálogo con {editingWorkflow.totalItems} productos
+                </p>
+              </div>
+
+              {/* Checkbox para reemplazar */}
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={replaceCsv}
+                    onChange={(e) => {
+                      setReplaceCsv(e.target.checked);
+                      if (!e.target.checked) {
+                        setCsvFile(null);
+                      }
+                    }}
+                    style={{ width: 16, height: 16, cursor: "pointer" }}
+                  />
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>
+                    Reemplazar CSV por uno nuevo
+                  </span>
+                </label>
+              </div>
+
+              {/* Input de archivo (solo si checkbox marcado) */}
+              {replaceCsv && (
+                <div>
+                  <input
+                    type="file"
+                    accept=".csv"
+                    onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+                    style={{ fontSize: 14 }}
+                  />
+                  <p style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
+                    📋 Formato: REFERENCIA;ASIN;NOMBRE;URL 1;URL 2;URL 3;URL 4;URL 5
+                  </p>
+                </div>
+              )}
+            </div>
+
             {/* Botones */}
             <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
               <button
                 onClick={() => {
                   setShowEditModal(false);
                   setEditingWorkflow(null);
+                  setReplaceCsv(false);
+                  setCsvFile(null);
                 }}
                 disabled={updating}
                 style={{
@@ -1069,7 +1155,7 @@ export default function WorkflowsPage() {
                 disabled={updating}
                 style={{
                   padding: "10px 20px",
-                  background: updating ? "#9ca3af" : "#f59e0b",
+                  background: updating ? "#9ca3af" : "#ff6b6b",
                   color: "#fff",
                   border: "none",
                   borderRadius: 8,
