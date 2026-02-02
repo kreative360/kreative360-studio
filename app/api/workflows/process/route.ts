@@ -290,7 +290,7 @@ async function processItemInline(workflowId: string, itemId: string, baseUrl: st
           project_id: workflow.project_id,
           reference: item.reference,
           asin: item.asin,
-          url: img.url,
+          storage_path: img.url,
           original_image_url: firstImageUrl,
           prompt_used: img.prompt,
           validation_status: "pending",
