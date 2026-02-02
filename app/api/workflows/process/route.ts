@@ -12,7 +12,6 @@ const supabase = createClient(
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
 
-// 🔧 FUNCIÓN PARA OBTENER BASE URL
 function getBaseUrl() {
   if (process.env.VERCEL_URL) {
     return `https://${process.env.VERCEL_URL}`;
@@ -23,7 +22,6 @@ function getBaseUrl() {
   return "http://localhost:3000";
 }
 
-// 🧠 FUNCIÓN INLINE: ANALIZAR Y GENERAR PROMPTS
 async function analyzeAndGeneratePrompts(
   productName: string,
   imageUrl: string,
@@ -35,7 +33,6 @@ async function analyzeAndGeneratePrompts(
   try {
     console.log("🧠 [ANALYZE] Starting analysis inline...");
     
-    // 1. FETCH IMAGE
     const imageRes = await fetch(imageUrl);
     if (!imageRes.ok) {
       throw new Error(`Failed to fetch image: ${imageRes.status} ${imageRes.statusText}`);
@@ -45,7 +42,6 @@ async function analyzeAndGeneratePrompts(
     const base64Image = Buffer.from(imageBuffer).toString("base64");
     console.log(`✅ [ANALYZE] Image fetched (${(imageBuffer.byteLength / 1024).toFixed(2)} KB)`);
 
-    // 2. CONSTRUIR PROMPT SEGÚN MODO
     let masterPrompt = "";
 
     if (mode === "global") {
@@ -120,7 +116,6 @@ RESPOND IN THIS EXACT JSON FORMAT:
 CRITICAL: Generate EXACTLY ${imagesCount} prompts.`;
     }
 
-    // 3. LLAMAR A GEMINI
     console.log("🤖 [ANALYZE] Calling Gemini API...");
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-image" });
     
@@ -137,7 +132,6 @@ CRITICAL: Generate EXACTLY ${imagesCount} prompts.`;
     const responseText = result.response.text().trim();
     console.log("📤 [ANALYZE] Gemini response received");
 
-    // 4. PARSEAR JSON
     let jsonText = responseText;
     if (jsonText.includes("```json")) {
       jsonText = jsonText.split("```json")[1].split("```")[0].trim();
@@ -147,7 +141,6 @@ CRITICAL: Generate EXACTLY ${imagesCount} prompts.`;
 
     const analysis = JSON.parse(jsonText);
 
-    // 5. VALIDAR
     if (!analysis.prompts || analysis.prompts.length !== imagesCount) {
       throw new Error(`Generated ${analysis.prompts?.length || 0} prompts but expected ${imagesCount}`);
     }
@@ -170,13 +163,11 @@ CRITICAL: Generate EXACTLY ${imagesCount} prompts.`;
   }
 }
 
-// 🔧 FUNCIÓN INLINE: PROCESAR UN ITEM COMPLETO
 async function processItemInline(workflowId: string, itemId: string, baseUrl: string) {
   const startTime = Date.now();
   let itemReference = "unknown";
 
   try {
-    // 1. OBTENER WORKFLOW Y ITEM
     console.log(`📦 [PROCESS-ITEM] Fetching workflow and item...`);
     
     const { data: workflow, error: workflowError } = await supabase
@@ -206,13 +197,11 @@ async function processItemInline(workflowId: string, itemId: string, baseUrl: st
     itemReference = item.reference;
     console.log(`✅ [PROCESS-ITEM] Found item: ${itemReference}`);
 
-    // 2. MARCAR COMO PROCESSING
     await supabase
       .from("workflow_items")
       .update({ status: "processing" })
       .eq("id", itemId);
 
-    // 3. ANALIZAR Y GENERAR PROMPTS (INLINE)
     console.log("🧠 [PROCESS-ITEM] Starting AI analysis...");
     
     const imageUrls = typeof item.image_urls === 'string' 
@@ -239,7 +228,6 @@ async function processItemInline(workflowId: string, itemId: string, baseUrl: st
 
     console.log(`✅ [PROCESS-ITEM] Analysis successful - Product type: ${analyzeData.product_type}`);
 
-    // 4. GUARDAR PROMPTS GENERADOS
     await supabase
       .from("workflow_items")
       .update({
@@ -250,7 +238,6 @@ async function processItemInline(workflowId: string, itemId: string, baseUrl: st
       })
       .eq("id", itemId);
 
-    // 5. GENERAR IMÁGENES
     console.log("🎨 [PROCESS-ITEM] Starting image generation...");
     const generatedImages = [];
 
@@ -295,7 +282,6 @@ async function processItemInline(workflowId: string, itemId: string, baseUrl: st
 
     console.log(`🎯 [PROCESS-ITEM] Generated ${generatedImages.length}/${analyzeData.prompts!.length} images`);
 
-    // 6. GUARDAR IMÁGENES EN PROYECTO
     if (generatedImages.length > 0) {
       console.log("📦 [PROCESS-ITEM] Saving images to project...");
       
@@ -307,19 +293,18 @@ async function processItemInline(workflowId: string, itemId: string, baseUrl: st
           url: img.url,
           original_image_url: firstImageUrl,
           prompt_used: img.prompt,
-          index: img.index,
           validation_status: "pending",
         }))
       );
 
       if (insertError) {
         console.error("❌ [PROCESS-ITEM] Error inserting images:", insertError);
+        throw new Error(`Failed to save images: ${insertError.message}`);
       } else {
         console.log(`✅ [PROCESS-ITEM] ${generatedImages.length} images saved to project`);
       }
     }
 
-    // 7. MARCAR COMO COMPLETADO
     await supabase
       .from("workflow_items")
       .update({
@@ -329,7 +314,6 @@ async function processItemInline(workflowId: string, itemId: string, baseUrl: st
       })
       .eq("id", itemId);
 
-    // 8. ACTUALIZAR CONTADOR DEL WORKFLOW
     await supabase.rpc("increment_workflow_processed", { workflow_id: workflowId });
 
     const duration = Date.now() - startTime;
@@ -345,7 +329,6 @@ async function processItemInline(workflowId: string, itemId: string, baseUrl: st
     console.error(`❌ [PROCESS-ITEM] FAILED - ${itemReference} - ${duration}ms`);
     console.error(`❌ [PROCESS-ITEM] Error:`, error.message);
 
-    // Marcar como fallido
     try {
       await supabase
         .from("workflow_items")
@@ -384,7 +367,6 @@ export async function POST(request: Request) {
     const baseUrl = getBaseUrl();
     console.log(`🌐 [PROCESS] Base URL: ${baseUrl}`);
 
-    // 1. OBTENER WORKFLOW
     const { data: workflow, error: workflowError } = await supabase
       .from("workflows")
       .select("*")
@@ -401,7 +383,6 @@ export async function POST(request: Request) {
 
     console.log(`✅ [PROCESS] Found workflow: ${workflow.name}`);
 
-    // 2. MARCAR WORKFLOW COMO PROCESSING
     await supabase
       .from("workflows")
       .update({
@@ -410,7 +391,6 @@ export async function POST(request: Request) {
       })
       .eq("id", workflowId);
 
-    // 3. OBTENER TODOS LOS ITEMS PENDIENTES
     const { data: items, error: itemsError } = await supabase
       .from("workflow_items")
       .select("*")
@@ -428,7 +408,6 @@ export async function POST(request: Request) {
     let successCount = 0;
     let failedCount = 0;
 
-    // 4. PROCESAR CADA ITEM SECUENCIALMENTE (INLINE)
     for (let i = 0; i < (items?.length || 0); i++) {
       const item = items![i];
       console.log(`\n📦 [PROCESS] Processing item ${i + 1}/${items!.length}: ${item.reference}`);
@@ -450,7 +429,6 @@ export async function POST(request: Request) {
           error: result.error,
         });
         
-        // Actualizar contador de fallidos
         await supabase
           .from("workflows")
           .update({
@@ -460,7 +438,6 @@ export async function POST(request: Request) {
       }
     }
 
-    // 5. MARCAR WORKFLOW COMO COMPLETADO
     await supabase
       .from("workflows")
       .update({
@@ -487,7 +464,6 @@ export async function POST(request: Request) {
     console.error(`❌ [PROCESS] WORKFLOW FAILED - ${duration}ms`);
     console.error(`❌ [PROCESS] Error:`, error);
 
-    // Marcar workflow como fallido
     try {
       const { workflowId } = await request.json();
       await supabase
