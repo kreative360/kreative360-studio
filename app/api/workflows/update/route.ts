@@ -11,7 +11,10 @@ export async function POST(req: Request) {
       imagesPerReference, 
       globalParams, 
       specificPrompts,
-      items
+      items,
+      imageSize,      // 🆕 NUEVO
+      imageFormat,    // 🆕 NUEVO
+      engine,         // 🆕 NUEVO
     } = await req.json();
 
     if (!workflowId) {
@@ -35,6 +38,9 @@ export async function POST(req: Request) {
       project_id: projectId,
       prompt_mode: mode,
       images_per_reference: imagesPerReference,
+      image_size: imageSize || "1024x1024",      // 🆕 NUEVO
+      image_format: imageFormat || "jpg",        // 🆕 NUEVO
+      engine: engine || "standard",              // 🆕 NUEVO
     };
 
     if (mode === "global") {

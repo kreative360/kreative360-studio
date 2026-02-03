@@ -39,6 +39,11 @@ export default function WorkflowsPage() {
   const [creating, setCreating] = useState(false);
   const [updating, setUpdating] = useState(false);
 
+  // 🆕 NUEVOS ESTADOS - Configuración de imagen
+  const [imageSize, setImageSize] = useState("1024x1024");
+  const [imageFormat, setImageFormat] = useState("jpg");
+  const [engine, setEngine] = useState<"standard" | "pro">("standard");
+
   useEffect(() => {
     loadWorkflows();
   }, []);
@@ -203,6 +208,9 @@ export default function WorkflowsPage() {
           imagesPerReference,
           globalParams: mode === "global" ? globalParams : null,
           specificPrompts: mode === "specific" ? specificPrompts : null,
+          imageSize,        // 🆕 NUEVO
+          imageFormat,      // 🆕 NUEVO
+          engine,           // 🆕 NUEVO
           items,
         }),
       });
@@ -217,11 +225,15 @@ export default function WorkflowsPage() {
       setShowCreateModal(false);
       loadWorkflows();
       
+      // Reset form
       setWorkflowName("");
       setProjectId("");
       setCsvFile(null);
       setGlobalParams("ambiente de uso hiperrealista, estética minimalista, respeta diseño 100%");
       setSpecificPrompts([]);
+      setImageSize("1024x1024");
+      setImageFormat("jpg");
+      setEngine("standard");
     } catch (error: any) {
       console.error("❌ Error creating workflow:", error);
       alert(`Error: ${error.message}`);
@@ -293,6 +305,9 @@ export default function WorkflowsPage() {
           imagesPerReference,
           globalParams: mode === "global" ? globalParams : null,
           specificPrompts: mode === "specific" ? specificPrompts : null,
+          imageSize,        // 🆕 NUEVO
+          imageFormat,      // 🆕 NUEVO
+          engine,           // 🆕 NUEVO
           items: newItems,
         }),
       });
@@ -310,10 +325,14 @@ export default function WorkflowsPage() {
       setCsvFile(null);
       loadWorkflows();
       
+      // Reset form
       setWorkflowName("");
       setProjectId("");
       setGlobalParams("ambiente de uso hiperrealista, estética minimalista, respeta diseño 100%");
       setSpecificPrompts([]);
+      setImageSize("1024x1024");
+      setImageFormat("jpg");
+      setEngine("standard");
     } catch (error: any) {
       console.error("❌ Error updating workflow:", error);
       alert(`Error: ${error.message}`);
@@ -399,6 +418,39 @@ export default function WorkflowsPage() {
       }
     } catch (error: any) {
       alert(`Error: ${error.message}`);
+    }
+  };
+
+  // 🆕 NUEVA FUNCIÓN - Retry de items fallidos
+  const retryFailedItems = async (workflowId: string) => {
+    const workflow = workflows.find(w => w.id === workflowId);
+    if (!workflow || workflow.failedItems === 0) return;
+
+    if (!confirm(`¿Re-procesar las ${workflow.failedItems} referencias que fallaron?`)) return;
+
+    try {
+      const res = await fetch("/api/workflows/retry-failed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workflowId }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        alert(
+          `✅ ${data.retriedCount} referencias resetadas a "pending".\n\n` +
+          `Referencias que se volverán a procesar:\n` +
+          data.failedReferences.map((item: any) => `• ${item.reference}`).join('\n') +
+          `\n\nAhora puedes ejecutar el workflow de nuevo.`
+        );
+        loadWorkflows();
+      } else {
+        alert(`❌ Error: ${data.error}`);
+      }
+    } catch (error) {
+      console.error("Error retrying failed items:", error);
+      alert("❌ Error al re-procesar referencias fallidas");
     }
   };
 
@@ -554,6 +606,29 @@ export default function WorkflowsPage() {
                         }}
                       >
                         ▶ Iniciar
+                      </button>
+                    )}
+                    
+                    {/* 🆕 NUEVO BOTÓN - Re-procesar Fallidos */}
+                    {workflow.failedItems > 0 && workflow.status !== "processing" && (
+                      <button
+                        onClick={() => retryFailedItems(workflow.id)}
+                        style={{
+                          padding: "8px 16px",
+                          background: "#f59e0b",
+                          color: "white",
+                          border: "none",
+                          borderRadius: 8,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          fontSize: 13,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
+                        title="Re-procesar solo las referencias que fallaron"
+                      >
+                        🔄 Re-procesar Fallidos ({workflow.failedItems})
                       </button>
                     )}
                     
@@ -738,6 +813,79 @@ export default function WorkflowsPage() {
                   fontSize: 14,
                 }}
               />
+            </div>
+
+            {/* 🆕 NUEVO SELECTOR - Tamaño de imagen */}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: "block", marginBottom: 8, fontWeight: 600, color: "#111827", fontSize: 14 }}>
+                📐 Tamaño de imagen
+              </label>
+              <select
+                value={imageSize}
+                onChange={(e) => setImageSize(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  border: "2px solid #e5e7eb",
+                  borderRadius: 8,
+                  fontSize: 14,
+                  cursor: "pointer",
+                }}
+              >
+                <option value="1024x1024">1:1 (cuadrado) · 1024×1024px</option>
+                <option value="2000x2000">2:2 (cuadrado) · 2000×2000px</option>
+              </select>
+            </div>
+
+            {/* 🆕 NUEVO SELECTOR - Formato */}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: "block", marginBottom: 8, fontWeight: 600, color: "#111827", fontSize: 14 }}>
+                📄 Formato de archivo
+              </label>
+              <select
+                value={imageFormat}
+                onChange={(e) => setImageFormat(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  border: "2px solid #e5e7eb",
+                  borderRadius: 8,
+                  fontSize: 14,
+                  cursor: "pointer",
+                }}
+              >
+                <option value="jpg">JPG (recomendado)</option>
+                <option value="png">PNG (con transparencia)</option>
+                <option value="webp">WEBP (más ligero)</option>
+              </select>
+            </div>
+
+            {/* 🆕 NUEVO SELECTOR - Modelo IA */}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: "block", marginBottom: 8, fontWeight: 600, color: "#111827", fontSize: 14 }}>
+                🤖 Modelo de IA
+              </label>
+              <select
+                value={engine}
+                onChange={(e) => setEngine(e.target.value as "standard" | "pro")}
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  border: "2px solid #e5e7eb",
+                  borderRadius: 8,
+                  fontSize: 14,
+                  cursor: "pointer",
+                }}
+              >
+                <option value="standard">⚡ Standard (Rápido - Recomendado)</option>
+                <option value="pro">💎 Pro (Máxima calidad)</option>
+              </select>
+              <div style={{ marginTop: 8, fontSize: 12, color: "#6b7280" }}>
+                {engine === "standard" 
+                  ? "Generación rápida con buena calidad"
+                  : "Mejor calidad pero más lento (2-3x tiempo)"
+                }
+              </div>
             </div>
 
             <div style={{ marginBottom: 20 }}>
@@ -975,6 +1123,77 @@ export default function WorkflowsPage() {
                   fontSize: 14,
                 }}
               />
+            </div>
+
+            {/* 🆕 SELECTORES EN MODAL DE EDICIÓN */}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: "block", marginBottom: 8, fontWeight: 600, color: "#111827", fontSize: 14 }}>
+                📐 Tamaño de imagen
+              </label>
+              <select
+                value={imageSize}
+                onChange={(e) => setImageSize(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  border: "2px solid #e5e7eb",
+                  borderRadius: 8,
+                  fontSize: 14,
+                  cursor: "pointer",
+                }}
+              >
+                <option value="1024x1024">1:1 (cuadrado) · 1024×1024px</option>
+                <option value="2000x2000">2:2 (cuadrado) · 2000×2000px</option>
+              </select>
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: "block", marginBottom: 8, fontWeight: 600, color: "#111827", fontSize: 14 }}>
+                📄 Formato de archivo
+              </label>
+              <select
+                value={imageFormat}
+                onChange={(e) => setImageFormat(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  border: "2px solid #e5e7eb",
+                  borderRadius: 8,
+                  fontSize: 14,
+                  cursor: "pointer",
+                }}
+              >
+                <option value="jpg">JPG (recomendado)</option>
+                <option value="png">PNG (con transparencia)</option>
+                <option value="webp">WEBP (más ligero)</option>
+              </select>
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: "block", marginBottom: 8, fontWeight: 600, color: "#111827", fontSize: 14 }}>
+                🤖 Modelo de IA
+              </label>
+              <select
+                value={engine}
+                onChange={(e) => setEngine(e.target.value as "standard" | "pro")}
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  border: "2px solid #e5e7eb",
+                  borderRadius: 8,
+                  fontSize: 14,
+                  cursor: "pointer",
+                }}
+              >
+                <option value="standard">⚡ Standard (Rápido - Recomendado)</option>
+                <option value="pro">💎 Pro (Máxima calidad)</option>
+              </select>
+              <div style={{ marginTop: 8, fontSize: 12, color: "#6b7280" }}>
+                {engine === "standard" 
+                  ? "Generación rápida con buena calidad"
+                  : "Mejor calidad pero más lento (2-3x tiempo)"
+                }
+              </div>
             </div>
 
             <div style={{ marginBottom: 20 }}>

@@ -170,9 +170,10 @@ async function processItemInline(workflowId: string, itemId: string, baseUrl: st
   try {
     console.log(`📦 [PROCESS-ITEM] Fetching workflow and item...`);
     
+    // 🆕 CAMBIO 1: Seleccionar campos específicos incluyendo configuración de imagen
     const { data: workflow, error: workflowError } = await supabase
       .from("workflows")
-      .select("*")
+      .select("id, project_id, prompt_mode, global_params, specific_prompts, images_per_reference, image_size, image_format, engine")
       .eq("id", workflowId)
       .single();
 
@@ -241,6 +242,9 @@ async function processItemInline(workflowId: string, itemId: string, baseUrl: st
     console.log("🎨 [PROCESS-ITEM] Starting image generation...");
     const generatedImages = [];
 
+    // 🆕 CAMBIO 2: Parsear configuración de tamaño
+    const [width, height] = (workflow.image_size || "1024x1024").split('x').map(Number);
+
     for (let i = 0; i < analyzeData.prompts!.length; i++) {
       const prompt = analyzeData.prompts![i];
       console.log(`🖼️ [PROCESS-ITEM] Generating image ${i + 1}/${analyzeData.prompts!.length}...`);
@@ -255,7 +259,10 @@ async function processItemInline(workflowId: string, itemId: string, baseUrl: st
               refs: [firstImageUrl],
               count: 1,
               overridePrompt: prompt,
-              engine: "v2",
+              width: width,                              // 🆕 NUEVO
+              height: height,                            // 🆕 NUEVO
+              format: workflow.image_format || "jpg",    // 🆕 NUEVO
+              engine: workflow.engine || "standard",     // 🆕 NUEVO (era "v2")
             }),
           }
         );
@@ -289,11 +296,13 @@ async function processItemInline(workflowId: string, itemId: string, baseUrl: st
     if (generatedImages.length > 0) {
       console.log("📦 [PROCESS-ITEM] Saving images to project...");
       
+      // 🆕 CAMBIO 3: Añadir image_index para numeración consistente
       const { error: insertError } = await supabase.from("project_images").insert(
-        generatedImages.map((img) => ({
+        generatedImages.map((img, index) => ({
           project_id: workflow.project_id,
           reference: item.reference,
           asin: item.asin,
+          image_index: index + 1,                      // 🆕 NUEVO - Numeración consistente
           storage_path: img.url,
           original_image_url: firstImageUrl,
           prompt_used: img.prompt,

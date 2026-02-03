@@ -19,6 +19,9 @@ export async function POST(request: Request) {
       globalParams,
       specificPrompts,
       items,
+      imageSize,      // 🆕 NUEVO
+      imageFormat,    // 🆕 NUEVO
+      engine,         // 🆕 NUEVO
     } = body;
 
     console.log("📥 Creating workflow:", { name, projectId, mode, imagesPerReference });
@@ -62,6 +65,9 @@ export async function POST(request: Request) {
         images_per_reference: imagesPerReference,
         global_params: globalParams || null,
         specific_prompts: specificPrompts ? JSON.stringify(specificPrompts) : null,
+        image_size: imageSize || "1024x1024",       // 🆕 NUEVO
+        image_format: imageFormat || "jpg",          // 🆕 NUEVO
+        engine: engine || "standard",                // 🆕 NUEVO
         status: "pending",
         total_items: items.length,
         processed_items: 0,
