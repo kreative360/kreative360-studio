@@ -20,15 +20,21 @@ export async function POST(req: Request) {
 
     if (fetchError) throw fetchError;
 
-    // 2️⃣ Borrar archivos de Storage
-    const paths = images.map((img) => img.storage_path);
+    // 2️⃣ Borrar archivos de Storage (solo si NO son data URLs)
+    // Filtrar solo las rutas que son archivos reales en Storage (no data URLs ni blob URLs)
+    const storagePaths = images
+      .map((img) => img.storage_path)
+      .filter((path) => path && !path.startsWith("data:") && !path.startsWith("blob:"));
 
-    if (paths.length > 0) {
+    if (storagePaths.length > 0) {
       const { error: storageError } = await supabaseAdmin.storage
         .from("project-images")
-        .remove(paths);
+        .remove(storagePaths);
 
-      if (storageError) throw storageError;
+      if (storageError) {
+        console.warn("Storage deletion error:", storageError);
+        // No lanzar error - continuar con la eliminación de BD
+      }
     }
 
     // 3️⃣ Borrar registros de DB
