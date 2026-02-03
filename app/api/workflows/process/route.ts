@@ -268,8 +268,12 @@ async function processItemInline(workflowId: string, itemId: string, baseUrl: st
         const generateData = await generateRes.json();
 
         if (generateData.images && generateData.images.length > 0) {
+          const imageData = generateData.images[0];
+          // Convertir base64 a data URL válida
+          const dataUrl = `data:${imageData.mime || 'image/jpeg'};base64,${imageData.base64}`;
+          
           generatedImages.push({
-            url: generateData.images[0],
+            url: dataUrl,
             prompt: prompt,
             index: i + 1,
           });
