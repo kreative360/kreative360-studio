@@ -286,38 +286,47 @@ async function processItemInline(workflowId: string, itemId: string, baseUrl: st
 
     console.log(`🎯 [PROCESS-ITEM] Generated ${generatedImages.length}/${analyzeData.prompts!.length} images`);
 
-    // 🆕 SECCIÓN MODIFICADA - NUMERACIÓN CORRECTA CON image_index
+    // 🆕 SECCIÓN CORREGIDA - NUMERACIÓN SIN DUPLICADOS
     if (generatedImages.length > 0) {
       console.log("📦 [PROCESS-ITEM] Saving images to project...");
       
+      // Obtener índices existentes UNA SOLA VEZ
+      const { data: existingImages } = await supabase
+        .from("project_images")
+        .select("image_index")
+        .eq("project_id", workflow.project_id)
+        .eq("reference", item.reference)
+        .order("image_index", { ascending: true });
+
+      const existingIndexes = new Set(
+        (existingImages || [])
+          .map((img) => img.image_index)
+          .filter((idx) => idx !== null && idx !== undefined)
+      );
+
+      console.log(`📊 [PROCESS-ITEM] Existing indexes for ${item.reference}:`, Array.from(existingIndexes).sort((a, b) => a - b));
+
+      // 🔥 FIX CRÍTICO: Mantener registro de índices asignados en este batch
+      const assignedIndexes = new Set<number>();
       const imagesToInsert = [];
       
       for (const img of generatedImages) {
-        // Obtener índices existentes para esta referencia
-        const { data: existingImages } = await supabase
-          .from("project_images")
-          .select("image_index")
-          .eq("project_id", workflow.project_id)
-          .eq("reference", item.reference)
-          .order("image_index", { ascending: true });
-
-        // Calcular el siguiente índice disponible (rellenando huecos)
-        const existingIndexes = new Set(
-          (existingImages || [])
-            .map((img) => img.image_index)
-            .filter((idx) => idx !== null && idx !== undefined)
-        );
+        // Combinar índices existentes + índices ya asignados en este batch
+        const allUsedIndexes = new Set([...existingIndexes, ...assignedIndexes]);
 
         let nextIndex = 0;
-        while (existingIndexes.has(nextIndex)) {
+        while (allUsedIndexes.has(nextIndex)) {
           nextIndex++;
         }
+
+        // Registrar que este índice ya está asignado
+        assignedIndexes.add(nextIndex);
 
         imagesToInsert.push({
           project_id: workflow.project_id,
           reference: item.reference,
           asin: item.asin,
-          image_index: nextIndex,  // 🆕 NUMERACIÓN CORRECTA (empieza en 0, rellena huecos)
+          image_index: nextIndex,
           storage_path: img.url,
           original_image_url: firstImageUrl,
           prompt_used: img.prompt,
@@ -335,10 +344,10 @@ async function processItemInline(workflowId: string, itemId: string, baseUrl: st
         console.error("❌ [PROCESS-ITEM] Error inserting images:", insertError);
         throw new Error(`Failed to save images: ${insertError.message}`);
       } else {
-        console.log(`✅ [PROCESS-ITEM] ${generatedImages.length} images saved to project`);
+        console.log(`✅ [PROCESS-ITEM] ${generatedImages.length} images saved with indexes:`, Array.from(assignedIndexes).sort((a, b) => a - b));
       }
     }
-    // 🆕 FIN DE LA SECCIÓN MODIFICADA
+    // 🆕 FIN DE LA SECCIÓN CORREGIDA
 
     await supabase
       .from("workflow_items")
