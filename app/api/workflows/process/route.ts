@@ -170,10 +170,9 @@ async function processItemInline(workflowId: string, itemId: string, baseUrl: st
   try {
     console.log(`📦 [PROCESS-ITEM] Fetching workflow and item...`);
     
-    // 🆕 CAMBIO 1: Seleccionar campos específicos incluyendo configuración de imagen
     const { data: workflow, error: workflowError } = await supabase
       .from("workflows")
-      .select("id, project_id, prompt_mode, global_params, specific_prompts, images_per_reference, image_size, image_format, engine")
+      .select("*")
       .eq("id", workflowId)
       .single();
 
@@ -242,9 +241,6 @@ async function processItemInline(workflowId: string, itemId: string, baseUrl: st
     console.log("🎨 [PROCESS-ITEM] Starting image generation...");
     const generatedImages = [];
 
-    // 🆕 CAMBIO 2: Parsear configuración de tamaño
-    const [width, height] = (workflow.image_size || "1024x1024").split('x').map(Number);
-
     for (let i = 0; i < analyzeData.prompts!.length; i++) {
       const prompt = analyzeData.prompts![i];
       console.log(`🖼️ [PROCESS-ITEM] Generating image ${i + 1}/${analyzeData.prompts!.length}...`);
@@ -259,10 +255,7 @@ async function processItemInline(workflowId: string, itemId: string, baseUrl: st
               refs: [firstImageUrl],
               count: 1,
               overridePrompt: prompt,
-              width: width,                              // 🆕 NUEVO
-              height: height,                            // 🆕 NUEVO
-              format: workflow.image_format || "jpg",    // 🆕 NUEVO
-              engine: workflow.engine || "standard",     // 🆕 NUEVO (era "v2")
+              engine: "v2",
             }),
           }
         );
@@ -293,22 +286,50 @@ async function processItemInline(workflowId: string, itemId: string, baseUrl: st
 
     console.log(`🎯 [PROCESS-ITEM] Generated ${generatedImages.length}/${analyzeData.prompts!.length} images`);
 
+    // 🆕 SECCIÓN MODIFICADA - NUMERACIÓN CORRECTA CON image_index
     if (generatedImages.length > 0) {
       console.log("📦 [PROCESS-ITEM] Saving images to project...");
       
-      // 🆕 CAMBIO 3: Añadir image_index para numeración consistente
-      const { error: insertError } = await supabase.from("project_images").insert(
-        generatedImages.map((img, index) => ({
+      const imagesToInsert = [];
+      
+      for (const img of generatedImages) {
+        // Obtener índices existentes para esta referencia
+        const { data: existingImages } = await supabase
+          .from("project_images")
+          .select("image_index")
+          .eq("project_id", workflow.project_id)
+          .eq("reference", item.reference)
+          .order("image_index", { ascending: true });
+
+        // Calcular el siguiente índice disponible (rellenando huecos)
+        const existingIndexes = new Set(
+          (existingImages || [])
+            .map((img) => img.image_index)
+            .filter((idx) => idx !== null && idx !== undefined)
+        );
+
+        let nextIndex = 0;
+        while (existingIndexes.has(nextIndex)) {
+          nextIndex++;
+        }
+
+        imagesToInsert.push({
           project_id: workflow.project_id,
           reference: item.reference,
           asin: item.asin,
-          image_index: index + 1,                      // 🆕 NUEVO - Numeración consistente
+          image_index: nextIndex,  // 🆕 NUMERACIÓN CORRECTA (empieza en 0, rellena huecos)
           storage_path: img.url,
           original_image_url: firstImageUrl,
           prompt_used: img.prompt,
           validation_status: "pending",
-        }))
-      );
+        });
+
+        console.log(`📝 [PROCESS-ITEM] Assigned index ${nextIndex} to image for ${item.reference}`);
+      }
+
+      const { error: insertError } = await supabase
+        .from("project_images")
+        .insert(imagesToInsert);
 
       if (insertError) {
         console.error("❌ [PROCESS-ITEM] Error inserting images:", insertError);
@@ -317,6 +338,7 @@ async function processItemInline(workflowId: string, itemId: string, baseUrl: st
         console.log(`✅ [PROCESS-ITEM] ${generatedImages.length} images saved to project`);
       }
     }
+    // 🆕 FIN DE LA SECCIÓN MODIFICADA
 
     await supabase
       .from("workflow_items")
