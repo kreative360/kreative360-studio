@@ -1,526 +1,110 @@
-import { createClient } from "@supabase/supabase-js";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
-
-export const dynamic = "force-dynamic";
-export const maxDuration = 300;
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
-
-function getBaseUrl() {
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`;
-  }
-  if (process.env.NEXT_PUBLIC_APP_URL) {
-    return process.env.NEXT_PUBLIC_APP_URL;
-  }
-  return "http://localhost:3000";
-}
-
-async function analyzeAndGeneratePrompts(
-  productName: string,
-  imageUrl: string,
-  mode: string,
-  imagesCount: number,
-  globalParams?: string,
-  specificPrompts?: string[]
-) {
-  try {
-    console.log("🧠 [ANALYZE] Starting analysis inline...");
-    
-    const imageRes = await fetch(imageUrl);
-    if (!imageRes.ok) {
-      throw new Error(`Failed to fetch image: ${imageRes.status} ${imageRes.statusText}`);
-    }
-    
-    const imageBuffer = await imageRes.arrayBuffer();
-    const base64Image = Buffer.from(imageBuffer).toString("base64");
-    console.log(`✅ [ANALYZE] Image fetched (${(imageBuffer.byteLength / 1024).toFixed(2)} KB)`);
-
-    let masterPrompt = "";
-
-    if (mode === "global") {
-      masterPrompt = `You are an expert product photographer and prompt engineer.
-
-TASK: Analyze this product and generate ${imagesCount} specialized photography prompts.
-
-PRODUCT INFO:
-${productName ? `Name: ${productName}` : "Name: Not provided"}
-
-USER'S GLOBAL REQUIREMENTS (apply to ALL ${imagesCount} images):
-${globalParams || "Create hyperrealistic product photography, respecting the original design 100%"}
-
-YOUR JOB:
-1. IDENTIFY what type of product this is (be very specific)
-2. GENERATE ${imagesCount} UNIQUE prompts that:
-   - Are tailored specifically for THIS type of product
-   - Incorporate the user's global requirements in ALL prompts
-   - Show the product in ${imagesCount} DIFFERENT realistic scenarios
-   - Vary in composition, lighting, angle, and context
-   - Each prompt MUST be completely DIFFERENT from the others
-   - Are professional and detailed
-
-RESPOND IN THIS EXACT JSON FORMAT:
-{
-  "product_type": "specific product type",
-  "description": "brief description",
-  "confidence": 0.95,
-  "prompts": [
-    "Prompt 1: detailed prompt here...",
-    "Prompt 2: detailed prompt here...",
-    ${Array(Math.max(0, imagesCount - 2)).fill('    "Prompt N: detailed prompt here..."').join(',\n')}
-  ]
-}
-
-CRITICAL: Generate EXACTLY ${imagesCount} prompts, each one UNIQUE.`;
-    } else {
-      const specificList = specificPrompts!
-        .map((spec: string, i: number) => `${i + 1}. ${spec}`)
-        .join('\n');
-
-      masterPrompt = `You are an expert product photographer and prompt engineer.
-
-TASK: Analyze this product and adapt ${imagesCount} user-specified requirements into professional prompts.
-
-PRODUCT INFO:
-${productName ? `Name: ${productName}` : "Name: Not provided"}
-
-USER'S SPECIFIC REQUIREMENTS (one per image):
-${specificList}
-
-YOUR JOB:
-1. IDENTIFY what type of product this is (be very specific)
-2. For EACH of the ${imagesCount} specifications above:
-   - ADAPT it to this specific product type
-   - Make it professional and detailed
-   - Preserve the user's intent but make it product-appropriate
-   - Add technical photography details
-
-RESPOND IN THIS EXACT JSON FORMAT:
-{
-  "product_type": "specific product type",
-  "description": "brief description",
-  "confidence": 0.95,
-  "prompts": [
-    "Adapted prompt 1 based on user spec 1...",
-    "Adapted prompt 2 based on user spec 2...",
-    ${Array(Math.max(0, imagesCount - 2)).fill('    "Adapted prompt N based on user spec N..."').join(',\n')}
-  ]
-}
-
-CRITICAL: Generate EXACTLY ${imagesCount} prompts.`;
-    }
-
-    console.log("🤖 [ANALYZE] Calling Gemini API...");
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-image" });
-    
-    const result = await model.generateContent([
-      {
-        inlineData: {
-          mimeType: "image/jpeg",
-          data: base64Image,
-        },
-      },
-      masterPrompt,
-    ]);
-
-    const responseText = result.response.text().trim();
-    console.log("📤 [ANALYZE] Gemini response received");
-
-    let jsonText = responseText;
-    if (jsonText.includes("```json")) {
-      jsonText = jsonText.split("```json")[1].split("```")[0].trim();
-    } else if (jsonText.includes("```")) {
-      jsonText = jsonText.split("```")[1].split("```")[0].trim();
-    }
-
-    const analysis = JSON.parse(jsonText);
-
-    if (!analysis.prompts || analysis.prompts.length !== imagesCount) {
-      throw new Error(`Generated ${analysis.prompts?.length || 0} prompts but expected ${imagesCount}`);
-    }
-
-    console.log(`✅ [ANALYZE] SUCCESS - Product: ${analysis.product_type}, Prompts: ${analysis.prompts.length}`);
-
-    return {
-      success: true,
-      product_type: analysis.product_type,
-      description: analysis.description,
-      confidence: analysis.confidence || 0.9,
-      prompts: analysis.prompts,
-    };
-  } catch (error: any) {
-    console.error(`❌ [ANALYZE] Error:`, error.message);
-    return {
-      success: false,
-      error: error.message,
-    };
-  }
-}
-
-async function processItemInline(workflowId: string, itemId: string, baseUrl: string) {
-  const startTime = Date.now();
-  let itemReference = "unknown";
-
-  try {
-    console.log(`📦 [PROCESS-ITEM] Fetching workflow and item...`);
-    
-    const { data: workflow, error: workflowError } = await supabase
-      .from("workflows")
-      .select("*")
-      .eq("id", workflowId)
-      .single();
-
-    if (workflowError) {
-      throw new Error(`Workflow fetch failed: ${workflowError.message}`);
-    }
-
-    const { data: item, error: itemError } = await supabase
-      .from("workflow_items")
-      .select("*")
-      .eq("id", itemId)
-      .single();
-
-    if (itemError) {
-      throw new Error(`Item fetch failed: ${itemError.message}`);
-    }
-
-    if (!workflow || !item) {
-      throw new Error("Workflow or item not found");
-    }
-
-    itemReference = item.reference;
-    console.log(`✅ [PROCESS-ITEM] Found item: ${itemReference}`);
-
-    await supabase
-      .from("workflow_items")
-      .update({ status: "processing" })
-      .eq("id", itemId);
-
-    console.log("🧠 [PROCESS-ITEM] Starting AI analysis...");
-    
-    const imageUrls = typeof item.image_urls === 'string' 
-      ? JSON.parse(item.image_urls) 
-      : item.image_urls;
-    
-    const firstImageUrl = imageUrls[0];
-    console.log(`📸 [PROCESS-ITEM] Using reference image: ${firstImageUrl}`);
-
-    const analyzeData = await analyzeAndGeneratePrompts(
-      item.product_name,
-      firstImageUrl,
-      workflow.prompt_mode,
-      workflow.images_per_reference,
-      workflow.global_params,
-      typeof workflow.specific_prompts === 'string'
-        ? JSON.parse(workflow.specific_prompts)
-        : workflow.specific_prompts
-    );
-
-    if (!analyzeData.success) {
-      throw new Error(`Analysis failed: ${analyzeData.error}`);
-    }
-
-    console.log(`✅ [PROCESS-ITEM] Analysis successful - Product type: ${analyzeData.product_type}`);
-
-    await supabase
-      .from("workflow_items")
-      .update({
-        detected_product_type: analyzeData.product_type,
-        detection_description: analyzeData.description,
-        detection_confidence: analyzeData.confidence,
-        generated_prompts: JSON.stringify(analyzeData.prompts),
-      })
-      .eq("id", itemId);
-
-    console.log("🎨 [PROCESS-ITEM] Starting image generation...");
-    const generatedImages = [];
-
-    for (let i = 0; i < analyzeData.prompts!.length; i++) {
-      const prompt = analyzeData.prompts![i];
-      console.log(`🖼️ [PROCESS-ITEM] Generating image ${i + 1}/${analyzeData.prompts!.length}...`);
-
-      try {
-        const generateRes = await fetch(
-          `${baseUrl}/api/generate`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              refs: [firstImageUrl],
-              count: 1,
-              overridePrompt: prompt,
-              engine: "v2",
-            }),
-          }
-        );
-
-        if (!generateRes.ok) {
-          console.warn(`⚠️ [PROCESS-ITEM] Generate API returned ${generateRes.status} for image ${i + 1}`);
-          continue;
-        }
-
-        const generateData = await generateRes.json();
-
-        if (generateData.images && generateData.images.length > 0) {
-          const imageData = generateData.images[0];
-          // Convertir base64 a data URL válida
-          const dataUrl = `data:${imageData.mime || 'image/jpeg'};base64,${imageData.base64}`;
-          
-          generatedImages.push({
-            url: dataUrl,
-            prompt: prompt,
-            index: i + 1,
-          });
-          console.log(`✅ [PROCESS-ITEM] Image ${i + 1} generated successfully`);
-        }
-      } catch (imgError: any) {
-        console.error(`❌ [PROCESS-ITEM] Error generating image ${i + 1}:`, imgError.message);
-      }
-    }
-
-    console.log(`🎯 [PROCESS-ITEM] Generated ${generatedImages.length}/${analyzeData.prompts!.length} images`);
-
-    // 🆕 SECCIÓN CORREGIDA - NUMERACIÓN SIN DUPLICADOS
-    if (generatedImages.length > 0) {
-      console.log("📦 [PROCESS-ITEM] Saving images to project...");
-      
-      // Obtener índices existentes UNA SOLA VEZ
-      const { data: existingImages } = await supabase
-        .from("project_images")
-        .select("image_index")
-        .eq("project_id", workflow.project_id)
-        .eq("reference", item.reference)
-        .order("image_index", { ascending: true });
-
-      const existingIndexes = new Set(
-        (existingImages || [])
-          .map((img) => img.image_index)
-          .filter((idx) => idx !== null && idx !== undefined)
-      );
-
-      console.log(`📊 [PROCESS-ITEM] Existing indexes for ${item.reference}:`, Array.from(existingIndexes).sort((a, b) => a - b));
-
-      // 🔥 FIX CRÍTICO: Mantener registro de índices asignados en este batch
-      const assignedIndexes = new Set<number>();
-      const imagesToInsert = [];
-      
-      for (const img of generatedImages) {
-        // Combinar índices existentes + índices ya asignados en este batch
-        const allUsedIndexes = new Set([...existingIndexes, ...assignedIndexes]);
-
-        let nextIndex = 0;
-        while (allUsedIndexes.has(nextIndex)) {
-          nextIndex++;
-        }
-
-        // Registrar que este índice ya está asignado
-        assignedIndexes.add(nextIndex);
-
-        imagesToInsert.push({
-          project_id: workflow.project_id,
-          reference: item.reference,
-          asin: item.asin,
-          image_index: nextIndex,
-          storage_path: img.url,
-          original_image_url: firstImageUrl,
-          prompt_used: img.prompt,
-          validation_status: "pending",
-        });
-
-        console.log(`📝 [PROCESS-ITEM] Assigned index ${nextIndex} to image for ${item.reference}`);
-      }
-
-      const { error: insertError } = await supabase
-        .from("project_images")
-        .insert(imagesToInsert);
-
-      if (insertError) {
-        console.error("❌ [PROCESS-ITEM] Error inserting images:", insertError);
-        throw new Error(`Failed to save images: ${insertError.message}`);
-      } else {
-        console.log(`✅ [PROCESS-ITEM] ${generatedImages.length} images saved with indexes:`, Array.from(assignedIndexes).sort((a, b) => a - b));
-      }
-    }
-    // 🆕 FIN DE LA SECCIÓN CORREGIDA
-
-    await supabase
-      .from("workflow_items")
-      .update({
-        status: "completed",
-        generated_images: JSON.stringify(generatedImages),
-        processed_at: new Date().toISOString(),
-      })
-      .eq("id", itemId);
-
-    await supabase.rpc("increment_workflow_processed", { workflow_id: workflowId });
-
-    const duration = Date.now() - startTime;
-    console.log(`✅ [PROCESS-ITEM] COMPLETED - ${itemReference} - ${duration}ms - ${generatedImages.length} images`);
-
-    return {
-      success: true,
-      reference: item.reference,
-      imagesGenerated: generatedImages.length,
-    };
-  } catch (error: any) {
-    const duration = Date.now() - startTime;
-    console.error(`❌ [PROCESS-ITEM] FAILED - ${itemReference} - ${duration}ms`);
-    console.error(`❌ [PROCESS-ITEM] Error:`, error.message);
-
-    try {
-      await supabase
-        .from("workflow_items")
-        .update({
-          status: "failed",
-          error_message: error.message,
-        })
-        .eq("id", itemId);
-    } catch (updateError) {
-      console.error("❌ [PROCESS-ITEM] Could not mark item as failed:", updateError);
-    }
-
-    return {
-      success: false,
-      reference: itemReference,
-      error: error.message,
-    };
-  }
-}
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export async function POST(request: Request) {
-  const startTime = Date.now();
-
   try {
-    const { workflowId } = await request.json();
+    const body = await request.json();
+    const { imageId, base64, mime, promptUsed } = body;
 
-    console.log(`\n🤖 [PROCESS] Starting workflow: ${workflowId}`);
-
-    if (!workflowId) {
+    if (!imageId || !base64) {
       return NextResponse.json(
-        { success: false, error: "workflowId is required" },
+        { success: false, error: "Faltan datos requeridos" },
         { status: 400 }
       );
     }
 
-    const baseUrl = getBaseUrl();
-    console.log(`🌐 [PROCESS] Base URL: ${baseUrl}`);
-
-    const { data: workflow, error: workflowError } = await supabase
-      .from("workflows")
-      .select("*")
-      .eq("id", workflowId)
+    // Obtener imagen actual
+    const { data: img, error: fetchErr } = await supabaseAdmin
+      .from("project_images")
+      .select("storage_path")
+      .eq("id", imageId)
       .single();
 
-    if (workflowError || !workflow) {
-      console.error("❌ [PROCESS] Workflow not found:", workflowError);
+    if (fetchErr || !img) {
       return NextResponse.json(
-        { success: false, error: "Workflow not found" },
+        { success: false, error: "Imagen no encontrada" },
         { status: 404 }
       );
     }
 
-    console.log(`✅ [PROCESS] Found workflow: ${workflow.name}`);
+    // 🆕 DETECTAR SI ES DATA URL O ARCHIVO DE STORAGE
+    const isDataUrl = img.storage_path && img.storage_path.startsWith("data:");
 
-    await supabase
-      .from("workflows")
-      .update({
-        status: "processing",
-        started_at: new Date().toISOString(),
-      })
-      .eq("id", workflowId);
+    let newStoragePath = img.storage_path;
+    let publicUrl = img.storage_path;
 
-    const { data: items, error: itemsError } = await supabase
-      .from("workflow_items")
-      .select("*")
-      .eq("workflow_id", workflowId)
-      .eq("status", "pending");
+    if (isDataUrl) {
+      // 🆕 ES DATA URL - Actualizar directamente el campo con nueva data URL
+      console.log("📝 [UPDATE-IMAGE] Updating data URL image");
+      
+      const newDataUrl = `data:${mime || 'image/jpeg'};base64,${base64}`;
+      newStoragePath = newDataUrl;
+      publicUrl = newDataUrl;
 
-    if (itemsError) {
-      console.error("❌ [PROCESS] Error fetching items:", itemsError);
-      throw new Error(`Failed to fetch items: ${itemsError.message}`);
-    }
+      // Actualizar storage_path con la nueva data URL
+      const { error: updateErr } = await supabaseAdmin
+        .from("project_images")
+        .update({ 
+          storage_path: newDataUrl,
+          prompt_used: promptUsed,
+          mime: mime || 'image/jpeg'
+        })
+        .eq("id", imageId);
 
-    console.log(`📊 [PROCESS] Found ${items?.length || 0} pending items`);
-
-    const results = [];
-    let successCount = 0;
-    let failedCount = 0;
-
-    for (let i = 0; i < (items?.length || 0); i++) {
-      const item = items![i];
-      console.log(`\n📦 [PROCESS] Processing item ${i + 1}/${items!.length}: ${item.reference}`);
-
-      const result = await processItemInline(workflowId, item.id, baseUrl);
-
-      if (result.success) {
-        successCount++;
-        results.push({
-          reference: item.reference,
-          status: "success",
-          imagesGenerated: result.imagesGenerated,
-        });
-      } else {
-        failedCount++;
-        results.push({
-          reference: item.reference,
-          status: "failed",
-          error: result.error,
-        });
-        
-        await supabase
-          .from("workflows")
-          .update({
-            failed_items: failedCount,
-          })
-          .eq("id", workflowId);
+      if (updateErr) {
+        console.error("❌ [UPDATE-IMAGE] Error updating data URL:", updateErr);
+        return NextResponse.json(
+          { success: false, error: "Error al actualizar: " + updateErr.message },
+          { status: 500 }
+        );
       }
+
+      console.log("✅ [UPDATE-IMAGE] Data URL image updated successfully");
+
+    } else {
+      // ✅ ES ARCHIVO DE STORAGE - Subir a Storage como antes
+      console.log("📤 [UPDATE-IMAGE] Uploading to Storage:", img.storage_path);
+
+      const buffer = Buffer.from(base64, "base64");
+      
+      const { error: uploadErr } = await supabaseAdmin.storage
+        .from("project-images")
+        .upload(img.storage_path, buffer, {
+          contentType: mime || "image/jpeg",
+          upsert: true,
+        });
+
+      if (uploadErr) {
+        console.error("❌ [UPDATE-IMAGE] Storage upload error:", uploadErr);
+        return NextResponse.json(
+          { success: false, error: "Error al subir: " + uploadErr.message },
+          { status: 500 }
+        );
+      }
+
+      // Actualizar prompt
+      await supabaseAdmin
+        .from("project_images")
+        .update({ prompt_used: promptUsed })
+        .eq("id", imageId);
+
+      // URL pública
+      const { data: urlData } = supabaseAdmin.storage
+        .from("project-images")
+        .getPublicUrl(img.storage_path);
+
+      publicUrl = urlData.publicUrl;
+
+      console.log("✅ [UPDATE-IMAGE] Storage image updated successfully");
     }
-
-    await supabase
-      .from("workflows")
-      .update({
-        status: "completed",
-        completed_at: new Date().toISOString(),
-      })
-      .eq("id", workflowId);
-
-    const duration = Date.now() - startTime;
-    console.log(`\n✅ [PROCESS] WORKFLOW COMPLETED - ${duration}ms`);
-    console.log(`📊 [PROCESS] Success: ${successCount}, Failed: ${failedCount}\n`);
 
     return NextResponse.json({
       success: true,
-      summary: {
-        total: items?.length || 0,
-        success: successCount,
-        failed: failedCount,
-      },
-      results,
+      url: publicUrl,
     });
+
   } catch (error: any) {
-    const duration = Date.now() - startTime;
-    console.error(`❌ [PROCESS] WORKFLOW FAILED - ${duration}ms`);
-    console.error(`❌ [PROCESS] Error:`, error);
-
-    try {
-      const { workflowId } = await request.json();
-      await supabase
-        .from("workflows")
-        .update({
-          status: "failed",
-          completed_at: new Date().toISOString(),
-        })
-        .eq("id", workflowId);
-    } catch (updateError) {
-      console.error("❌ [PROCESS] Could not mark workflow as failed:", updateError);
-    }
-
+    console.error("❌ [UPDATE-IMAGE] Error:", error);
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }

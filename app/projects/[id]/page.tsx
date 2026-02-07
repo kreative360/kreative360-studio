@@ -14,6 +14,7 @@ type ProjectImage = {
   index?: number;
   url?: string;
   base64?: string;
+  storage_path?: string;
   validation_status?: "pending" | "approved" | "rejected";
   original_image_url?: string;
   prompt_used?: string;
@@ -258,19 +259,32 @@ export default function ProjectPage() {
       }
 
       // 🔧 PASO 4: Actualizar imagen en el modal SIN CERRAR
-      const newUrl = `${updateData.url}?t=${Date.now()}`;
+      // 🆕 FIX: Detectar tipo de URL para manejar correctamente
+      const isDataUrl = updateData.url && updateData.url.startsWith("data:");
+      const newUrl = isDataUrl 
+        ? updateData.url  // ✅ Data URL directa
+        : `${updateData.url}?t=${Date.now()}`; // ✅ Storage con cache-bust
+      
+      console.log("🔄 [REGENERATE] URL type:", isDataUrl ? "data URL" : "Storage");
       
       setReviewModal({
         ...reviewModal,
         currentImage: {
           ...currentImg,
           url: newUrl,
+          storage_path: updateData.url, // ✅ Guardar URL original
           base64: newImage.base64,
           prompt_used: promptToUse,
         },
         imagesInReference: reviewModal.imagesInReference.map(img =>
           img.id === currentImg.id
-            ? { ...img, url: newUrl, base64: newImage.base64, prompt_used: promptToUse }
+            ? { 
+                ...img, 
+                url: newUrl,
+                storage_path: updateData.url,
+                base64: newImage.base64, 
+                prompt_used: promptToUse 
+              }
             : img
         ),
       });
@@ -279,7 +293,13 @@ export default function ProjectPage() {
       setImages(prev =>
         prev.map(img =>
           img.id === currentImg.id
-            ? { ...img, url: newUrl, base64: newImage.base64, prompt_used: promptToUse }
+            ? { 
+                ...img, 
+                url: newUrl,
+                storage_path: updateData.url,
+                base64: newImage.base64, 
+                prompt_used: promptToUse 
+              }
             : img
         )
       );
@@ -311,12 +331,19 @@ export default function ProjectPage() {
       if (!res.ok) throw new Error("Error al actualizar");
       
       const data = await res.json();
-      const newUrl = data.url + "?t=" + Date.now();
+      
+      // 🆕 FIX: Detectar tipo de URL
+      const isDataUrl = data.url && data.url.startsWith("data:");
+      const newUrl = isDataUrl 
+        ? data.url  // ✅ Data URL directa
+        : data.url + "?t=" + Date.now(); // ✅ Storage con cache-bust
+      
+      console.log("💾 [SAVE-EDIT] URL type:", isDataUrl ? "data URL" : "Storage");
       
       // Actualizar estado de imágenes CON base64
       setImages(prev => prev.map(img => 
         img.id === editorImageId 
-          ? { ...img, url: newUrl, base64: base64 } 
+          ? { ...img, url: newUrl, storage_path: data.url, base64: base64 } 
           : img
       ));
       
@@ -326,12 +353,13 @@ export default function ProjectPage() {
           ...reviewModal,
           currentImage: { 
             ...reviewModal.currentImage, 
-            url: newUrl, 
+            url: newUrl,
+            storage_path: data.url, 
             base64: base64 
           },
           imagesInReference: reviewModal.imagesInReference.map(img =>
             img.id === editorImageId 
-              ? { ...img, url: newUrl, base64: base64 } 
+              ? { ...img, url: newUrl, storage_path: data.url, base64: base64 } 
               : img
           ),
         });
