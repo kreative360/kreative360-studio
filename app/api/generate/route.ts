@@ -1,4 +1,3 @@
-// app/api/generate/route.ts
 import { NextResponse } from "next/server";
 import sharp from "sharp";
 import { PRESETS } from "../../../lib/presets";
