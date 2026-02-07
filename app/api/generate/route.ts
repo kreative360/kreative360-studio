@@ -59,6 +59,8 @@ export async function POST(req: Request) {
     const height = Number(body.height) || 1024;
     const format = String(body.format || "jpg").toLowerCase();
 
+    console.log(`📐 [GENERATE] Requested size: ${width}x${height} (aspect ratio ${(width/height).toFixed(2)}:1)`);
+
     // 🔹 Motor IA
     // standard → v2 | pro → v3
     const engine =
@@ -96,7 +98,8 @@ export async function POST(req: Request) {
     const images: ApiImage[] = [];
 
     for (let i = 0; i < count; i++) {
-      const img = await generateImage(prompt, refs, engine);
+      // 🆕 PASAR WIDTH Y HEIGHT A GEMINI
+      const img = await generateImage(prompt, refs, engine, width, height);
       const processed = await resizeAndFormat300DPI(
         img,
         width,
@@ -138,9 +141,15 @@ async function resizeAndFormat300DPI(
 ): Promise<ApiImage> {
   const input = Buffer.from(imgIn.base64, "base64");
 
+  // 🆕 CAMBIO CRÍTICO: "contain" en lugar de "cover"
+  // "cover" → RECORTA para llenar el área (❌ problema anterior)
+  // "contain" → MANTIENE PROPORCIONES sin recortar (✅ solución)
   let img = sharp(input, { limitInputPixels: false })
     .rotate()
-    .resize(width, height, { fit: "cover" });
+    .resize(width, height, { 
+      fit: "contain",           // ✅ NO recorta, mantiene proporciones
+      background: "#FFFFFF"      // Fondo blanco si hay espacios
+    });
 
   let finalBuf: Buffer;
   let mime = "";
@@ -179,6 +188,8 @@ async function resizeAndFormat300DPI(
       mime = "image/jpeg";
       break;
   }
+
+  console.log(`✅ [RESIZE] Processed to ${width}x${height} with fit:contain (NO CROP)`);
 
   return {
     base64: finalBuf.toString("base64"),
