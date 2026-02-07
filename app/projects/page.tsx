@@ -18,11 +18,12 @@ export default function ProjectsPage() {
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const [loading, setLoading] = useState(true);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const hasLoadedOnce = useRef(false);
 
   /* ======================================================
-     CARGAR PROYECTOS
+     CARGAR PROYECTOS - 🚀 OPTIMIZADO
   ====================================================== */
   const loadProjects = useCallback(async () => {
     try {
@@ -34,26 +35,9 @@ export default function ProjectsPage() {
         return;
       }
 
-      const withCounts = await Promise.all(
-        data.projects.map(async (project: Project) => {
-          try {
-            const res = await fetch(
-              `/api/projects/images?projectId=${project.id}`,
-              { cache: "no-store" }
-            );
-            const imgs = await res.json();
-
-            return {
-              ...project,
-              imagesCount: imgs.images?.length || 0,
-            };
-          } catch {
-            return { ...project, imagesCount: 0 };
-          }
-        })
-      );
-
-      setProjects(withCounts);
+      // 🚀 YA NO NECESITA PETICIONES ADICIONALES
+      // El backend devuelve imagesCount directamente
+      setProjects(data.projects);
     } catch (err) {
       console.error("Error cargando proyectos", err);
       setProjects([]);
@@ -150,6 +134,15 @@ export default function ProjectsPage() {
   };
 
   /* ======================================================
+     🆕 COPIAR UUID
+  ====================================================== */
+  const copyUUID = (id: string) => {
+    navigator.clipboard.writeText(id);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  /* ======================================================
      UI
   ====================================================== */
   return (
@@ -182,6 +175,7 @@ export default function ProjectsPage() {
         <input
           value={newProjectName}
           onChange={(e) => setNewProjectName(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && createProject()}
           placeholder="Nombre del proyecto"
           style={{
             flex: 1,
@@ -245,10 +239,16 @@ export default function ProjectsPage() {
                     setEditingProjectId(project.id);
                     setEditingName(project.name);
                   }}
+                  style={{ cursor: "pointer" }}
                 >
                   ✏️
                 </span>
-                <span onClick={() => deleteProject(project.id)}>✕</span>
+                <span 
+                  onClick={() => deleteProject(project.id)}
+                  style={{ cursor: "pointer" }}
+                >
+                  ✕
+                </span>
               </div>
 
               {editingProjectId === project.id ? (
@@ -271,15 +271,40 @@ export default function ProjectsPage() {
                   }}
                 />
               ) : (
-                <h2
-                  style={{
-                    fontFamily: "DM Serif Display",
-                    fontSize: 20,
-                    marginBottom: 6,
-                  }}
-                >
-                  {project.name}
-                </h2>
+                <>
+                  <h2
+                    style={{
+                      fontFamily: "DM Serif Display",
+                      fontSize: 20,
+                      marginBottom: 6,
+                    }}
+                  >
+                    {project.name}
+                  </h2>
+                  
+                  {/* 🆕 UUID VISIBLE */}
+                  <div
+                    onClick={(e) => {
+                      e.preventDefault();
+                      copyUUID(project.id);
+                    }}
+                    style={{
+                      fontSize: 10,
+                      opacity: 0.8,
+                      marginBottom: 8,
+                      fontFamily: "monospace",
+                      cursor: "pointer",
+                      padding: "4px 6px",
+                      background: "rgba(0,0,0,0.2)",
+                      borderRadius: 4,
+                      display: "inline-block",
+                      wordBreak: "break-all",
+                    }}
+                    title="Click para copiar"
+                  >
+                    {copiedId === project.id ? "✓ Copiado" : project.id}
+                  </div>
+                </>
               )}
 
               <p style={{ fontSize: 13, opacity: 0.9 }}>
