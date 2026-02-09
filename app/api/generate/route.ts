@@ -140,14 +140,14 @@ async function resizeAndFormat300DPI(
 ): Promise<ApiImage> {
   const input = Buffer.from(imgIn.base64, "base64");
 
-  // 🆕 CAMBIO CRÍTICO: "contain" en lugar de "cover"
-  // "cover" → RECORTA para llenar el área (❌ problema anterior)
-  // "contain" → MANTIENE PROPORCIONES sin recortar (✅ solución)
+  // ✅ CROP INTELIGENTE - SOLUCIÓN FINAL
+  // "cover" → Llena el área completa sin márgenes
+  // "entropy" → Recorta áreas con menos información (fondos) y mantiene el producto
   let img = sharp(input, { limitInputPixels: false })
     .rotate()
     .resize(width, height, { 
-      fit: "contain",           // ✅ NO recorta, mantiene proporciones
-      background: "#FFFFFF"      // Fondo blanco si hay espacios
+      fit: "cover",           // ✅ Llena el área (sin márgenes blancos)
+      position: "entropy"     // ✅ Crop inteligente (mantiene producto, recorta fondo)
     });
 
   let finalBuf: Buffer;
@@ -188,7 +188,7 @@ async function resizeAndFormat300DPI(
       break;
   }
 
-  console.log(`✅ [RESIZE] Processed to ${width}x${height} with fit:contain (NO CROP)`);
+  console.log(`✅ [RESIZE] Processed to ${width}x${height} with fit:cover + entropy (intelligent crop, no white margins)`);
 
   return {
     base64: finalBuf.toString("base64"),
