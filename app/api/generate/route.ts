@@ -37,11 +37,7 @@ export async function POST(req: Request) {
     const internalSecret = req.headers.get('x-internal-secret');
     const isInternalCall = internalSecret === process.env.INTERNAL_API_SECRET;
     
-    // Si NO es llamada interna, aquí iría la verificación de auth
-    // Pero como tu auth está en middleware, lo manejamos en el PASO 3
     if (!isInternalCall) {
-      // Por ahora, permitimos que el middleware maneje la auth
-      // Si el middleware ya bloqueó, nunca llegaríamos aquí
       console.log("⚠️ [GENERATE] No internal secret provided - relying on middleware auth");
     } else {
       console.log("✅ [GENERATE] Internal call authenticated");
@@ -61,7 +57,6 @@ export async function POST(req: Request) {
     console.log(`📐 [GENERATE] Requested size: ${width}x${height} (aspect ratio ${(width/height).toFixed(2)}:1)`);
 
     // 🔹 Motor IA
-    // standard → v2 | pro → v3
     const engine =
       body.model === "pro" || body.engine === "pro" ? "v3" : "v2";
 
@@ -140,14 +135,25 @@ async function resizeAndFormat300DPI(
 ): Promise<ApiImage> {
   const input = Buffer.from(imgIn.base64, "base64");
 
-  // ✅ CROP INTELIGENTE - SOLUCIÓN FINAL
-  // "cover" → Llena el área completa sin márgenes
-  // "entropy" → Recorta áreas con menos información (fondos) y mantiene el producto
+  // ✅ SOLUCIÓN DEFINITIVA - COMO PICTULAB
+  //
+  // Gemini genera imagen ~aproximada al aspect ratio correcto
+  // gracias a las instrucciones en el prompt.
+  //
+  // Luego hacemos crop mínimo CENTRADO al tamaño exacto:
+  // - "cover" → Llena el área completa (sin márgenes)
+  // - "centre" → Crop simétrico desde el centro (NO analiza contenido)
+  //
+  // Diferencia vs "entropy":
+  // - "entropy" analiza contenido y puede recortar el producto
+  // - "centre" recorta equitativamente de todos los bordes
+  //
+  // Como Gemini ya genera en ~9:16, el crop será MÍNIMO
   let img = sharp(input, { limitInputPixels: false })
     .rotate()
     .resize(width, height, { 
       fit: "cover",           // ✅ Llena el área (sin márgenes blancos)
-      position: "entropy"     // ✅ Crop inteligente (mantiene producto, recorta fondo)
+      position: "centre"      // ✅ Crop simétrico desde centro (mantiene producto)
     });
 
   let finalBuf: Buffer;
@@ -171,7 +177,6 @@ async function resizeAndFormat300DPI(
       break;
 
     case "bmp":
-      // BMP no soporta DPI → usamos PNG con density 300
       finalBuf = await img
         .png()
         .withMetadata({ density: 300 })
@@ -188,7 +193,7 @@ async function resizeAndFormat300DPI(
       break;
   }
 
-  console.log(`✅ [RESIZE] Processed to ${width}x${height} with fit:cover + entropy (intelligent crop, no white margins)`);
+  console.log(`✅ [RESIZE] Processed to ${width}x${height} with fit:cover + centre (centered crop, no white margins)`);
 
   return {
     base64: finalBuf.toString("base64"),
